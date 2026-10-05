@@ -1,0 +1,241 @@
+import 'package:flutter/material.dart';
+
+import '../../widgets/app_nav_bar.dart';
+import '../../services/admin_api.dart';
+import '../../services/order_alert.dart';
+import '../../utils/format.dart';
+import '../../utils/polling.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/common.dart' show AppLogo;
+import '../shared/order_detail_screen.dart';
+import 'admin_layout.dart';
+import 'admin_menu_screen.dart';
+import 'admin_more_screen.dart';
+import 'admin_orders_screen.dart';
+import 'counter_screen.dart';
+import 'dashboard_screen.dart';
+
+class AdminShell extends StatefulWidget {
+  const AdminShell({super.key});
+
+  static AdminShellState? of(BuildContext context) => context.findAncestorStateOfType<AdminShellState>();
+
+  @override
+  State<AdminShell> createState() => AdminShellState();
+}
+
+class AdminShellState extends State<AdminShell> {
+  /// Onglets, dans l'ordre d'affichage.
+  static const dashboardTab = 0, ordersTab = 1, counterTab = 2, menuTab = 3, moreTab = 4;
+  static const _tabs = [dashboardTab, ordersTab, counterTab, menuTab, moreTab];
+  int _index = 0; // identifiant de l'onglet affiché
+  int _pendingCount = 0;
+
+  // Paiements reçus : toutes les 20 s, jamais quand l'application est en arrière-plan.
+  late final SmartPoller _paymentsPoller =
+      SmartPoller(onPoll: _pollPayments, getInterval: (_) => const Duration(seconds: 20));
+  bool _pollingPayments = false;
+
+  /// Dernier paiement reçu connu (null tant que le premier chargement n'a pas abouti :
+  /// pas de notification pour les paiements antérieurs à l'ouverture de l'espace admin).
+  int? _lastPaymentId;
+
+  @override
+  void initState() {
+    super.initState();
+    paymentReviewCount.addListener(_onReviewCountChanged);
+    _pollPayments();
+    _paymentsPoller.startPolling('on');
+  }
+
+  @override
+  void dispose() {
+    _paymentsPoller.stop();
+    paymentReviewCount.removeListener(_onReviewCountChanged);
+    super.dispose();
+  }
+
+  void _onReviewCountChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void goTo(int index) {
+    // Ferme le clavier (ex : recherche) pour qu'il ne masque pas la barre d'onglets.
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (index != _index) setState(() => _index = index);
+  }
+
+  void setPendingCount(int n) {
+    if (n != _pendingCount) setState(() => _pendingCount = n);
+  }
+
+  /// Paiements reçus (notification) et nombre de paiements à vérifier (badge).
+  Future<void> _pollPayments() async {
+    if (_pollingPayments) return;
+    _pollingPayments = true;
+    try {
+      final last = _lastPaymentId;
+      final recent = await fetchRecentPayments(sinceId: last);
+      if (!mounted) return;
+      var maxId = last ?? 0;
+      for (final p in recent) {
+        if (p.id > maxId) maxId = p.id;
+      }
+      if (last != null) {
+        final fresh = recent.where((p) => p.id > last).toList()..sort((a, b) => a.id.compareTo(b.id));
+        final messenger = ScaffoldMessenger.of(context);
+        for (final p in fresh) {
+          messenger.showSnackBar(SnackBar(
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 6),
+            content: Row(
+              children: [
+                const Icon(Icons.payments_rounded, color: Colors.lightGreenAccent),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Paiement reçu – commande n°${p.orderId} – ${formatPrice(p.amount)} – '
+                    '${paymentLabel(p.operator)}',
+                  ),
+                ),
+              ],
+            ),
+            action: SnackBarAction(label: 'Voir', onPressed: () => _openOrder(p.orderId)),
+          ));
+        }
+      }
+      _lastPaymentId = maxId;
+    } catch (_) {
+      // Non bloquant : on réessaiera au prochain passage.
+    }
+    try {
+      await fetchPaymentsReview(); // met à jour paymentReviewCount
+    } catch (_) {
+      // Non bloquant.
+    } finally {
+      _pollingPayments = false;
+    }
+  }
+
+  void _openOrder(int orderId) {
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: orderId, admin: true)),
+    );
+  }
+
+  Widget _page(int tab) => switch (tab) {
+        dashboardTab => DashboardScreen(active: _index == dashboardTab),
+        ordersTab => AdminOrdersScreen(active: _index == ordersTab),
+        counterTab => CounterScreen(active: _index == counterTab),
+        menuTab => const AdminMenuScreen(),
+        _ => const AdminMoreScreen(),
+      };
+
+  Widget _badge(int count, IconData icon) => Badge(
+        isLabelVisible: count > 0,
+        label: Text('$count'),
+        child: BounceOnChange(trigger: count, child: Icon(icon)),
+      );
+
+  /// Icône, icône sélectionnée et libellé d'un onglet.
+  (Widget, Widget, String) _destination(int tab, int reviewCount) => switch (tab) {
+        dashboardTab => (
+            const Icon(Icons.home_outlined),
+            const Icon(Icons.home_rounded),
+            'Accueil',
+          ),
+        ordersTab => (
+            _badge(_pendingCount, Icons.receipt_long_outlined),
+            _badge(_pendingCount, Icons.receipt_long_rounded),
+            'Commandes',
+          ),
+        counterTab => (
+            const Icon(Icons.point_of_sale_outlined),
+            const Icon(Icons.point_of_sale_rounded),
+            'Caisse',
+          ),
+        menuTab => (
+            const Icon(Icons.restaurant_menu_outlined),
+            const Icon(Icons.restaurant_menu_rounded),
+            'Menu',
+          ),
+        // Badge : paiements mobile money à vérifier (accès via « Plus »).
+        _ => (
+            _badge(reviewCount, Icons.more_horiz_rounded),
+            _badge(reviewCount, Icons.more_horiz_rounded),
+            'Plus',
+          ),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final reviewCount = paymentReviewCount.value;
+    const tabs = _tabs;
+    final selected = tabs.indexOf(_index);
+    final destinations = [for (final t in tabs) _destination(t, reviewCount)];
+
+    // Bandeau « Nouvelle commande ! / J'ai vu » au-dessus de tous les onglets (sonnerie en cours).
+    final body = Column(
+      children: [
+        const OrderAlertBanner(),
+        Expanded(
+          // Bandeau affiché : il occupe déjà la barre d'état, les onglets n'ont plus à s'en écarter.
+          child: ValueListenableBuilder<bool>(
+            valueListenable: OrderAlert.instance.ringing,
+            builder: (context, ringing, child) =>
+                MediaQuery.removePadding(context: context, removeTop: ringing, child: child!),
+            child: FadeIndexedStack(
+              index: selected,
+              children: [for (final t in tabs) _page(t)],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    final width = MediaQuery.sizeOf(context).width;
+    if (width >= adminTabletBreakpoint) {
+      // Tablette : barre de navigation latérale (étendue sur grand écran) au lieu de la barre du bas.
+      final extended = width >= adminRailExtendedBreakpoint;
+      return Scaffold(
+        body: SafeArea(
+          right: false,
+          bottom: false,
+          child: Row(
+            children: [
+              NavigationRail(
+                extended: extended,
+                minExtendedWidth: 220,
+                selectedIndex: selected,
+                onDestinationSelected: (i) => goTo(tabs[i]),
+                labelType: extended ? NavigationRailLabelType.none : NavigationRailLabelType.all,
+                leading: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: AppLogo(size: extended ? 56 : 44),
+                ),
+                destinations: [
+                  for (final d in destinations)
+                    NavigationRailDestination(icon: d.$1, selectedIcon: d.$2, label: Text(d.$3)),
+                ],
+              ),
+              const VerticalDivider(width: 1, thickness: 1),
+              Expanded(child: body),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      body: body,
+      bottomNavigationBar: AppNavBar(
+        selectedIndex: selected,
+        onSelected: (i) => goTo(tabs[i]),
+        items: [
+          for (final d in destinations) AppNavItem(icon: d.$1, selectedIcon: d.$2, label: d.$3),
+        ],
+      ),
+    );
+  }
+}

@@ -1,0 +1,104 @@
+# Déploiement de l'API sur Render (offre gratuite).
+# render.com → New → Blueprint → choisir ce dépôt : Render lit ce fichier.
+#
+# Offre gratuite : le serveur s'endort après 15 min sans visite (≈ 50 s de réveil) et son
+# disque est effacé à chaque redémarrage. Pour garder les données, renseignez BACKUP_GITHUB_REPO
+# et BACKUP_GITHUB_TOKEN (sauvegarde automatique dans un dépôt GitHub privé, restaurée au
+# démarrage). Sans elles, la base repart de zéro (menu de démonstration) à chaque redémarrage.
+services:
+  - type: web
+    name: eza-zozo-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      # Clé de signature des sessions, générée aléatoirement par Render.
+      - key: JWT_SECRET
+        generateValue: true
+      # Render est devant le serveur : un proxy de confiance (vraies IP clients pour l'anti-abus).
+      - key: TRUST_PROXY
+        value: "1"
+      - key: ADMIN_PHONE
+        value: "0700000000"
+      # Demandé lors de la création : choisissez un mot de passe solide.
+      - key: ADMIN_PASSWORD
+        sync: false
+      # ---------- Paiements mobile money (Flooz / Mixx by Yas) ----------
+      # simulation (aucun argent réel) | paygate (recommandé au Togo) | kadev | direct (futur accès opérateur).
+      # Sans PAYGATE_AUTH_TOKEN, « paygate » retombe en simulation.
+      - key: PAYMENT_PROVIDER
+        value: simulation
+      # En production, la simulation est refusée aux clients (ils pourraient valider eux-mêmes leur
+      # paiement). "1" l'autorise pour une démonstration : à retirer avant d'encaisser de vrais clients.
+      - key: ALLOW_SIMULATION
+        value: "1"
+      # Jeton API du compte marchand PayGate Global (tableau de bord PayGate → API).
+      - key: PAYGATE_AUTH_TOKEN
+        sync: false
+      # Numéros marchands du restaurant (affichés masqués dans l'app admin, jamais en clair).
+      - key: MERCHANT_FLOOZ_NUMBER
+        sync: false
+      - key: MERCHANT_MIXX_NUMBER
+        sync: false
+      - key: MERCHANT_DISPLAY_NAME
+        value: Eza Zozo
+      # Commission de l'agrégateur, en % du montant payé (ex. 3.5) : mettez la commission exacte de votre
+      # contrat PayGate/KADEV. Par défaut le RESTAURANT la paie (le client paie le prix affiché ; la commission
+      # et le net réels apparaissent dans « Encaissements »). Avec le réglage admin « frais payés par le client »
+      # (payment_fees_paid_by=client) : total = (commande + livraison) / (1 − %/100), le restaurant reçoit commande + livraison.
+      # Un taux par opérateur, sinon PROVIDER_FEE_PERCENT pour les deux. Laissez vide en simulation :
+      # c'est alors le réglage « frais de paiement » de l'app admin qui s'applique.
+      - key: PROVIDER_FEE_PERCENT_FLOOZ
+        sync: false
+      - key: PROVIDER_FEE_PERCENT_MIXX
+        sync: false
+      - key: PROVIDER_FEE_PERCENT
+        sync: false
+      # KADEV PAY (ancien parcours navigateur), uniquement si PAYMENT_PROVIDER=kadev.
+      - key: KADEV_PUBLIC_KEY
+        sync: false
+      - key: KADEV_SECRET_KEY
+        sync: false
+      - key: KADEV_WEBHOOK_SECRET
+        sync: false
+      # ---------- Sauvegarde des données (dépôt GitHub privé) ----------
+      # « propriétaire/dépôt » et jeton fine-grained « Contents : Read and write » limité à ce dépôt.
+      - key: BACKUP_GITHUB_REPO
+        sync: false
+      - key: BACKUP_GITHUB_TOKEN
+        sync: false
+      # ---------- Notifications push (Firebase Cloud Messaging) ----------
+      # JSON du compte de service Firebase (brut ou base64). Sans lui : aucune notification.
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false
+      # ---------- SMS (code de vérification, mot de passe oublié) ----------
+      # none (défaut : mot de passe oublié traité par l'admin) | http (passerelle SMS) | log (dev).
+      - key: SMS_PROVIDER
+        value: none
+      # Passerelle http : URL avec {phone} et {text}, méthode, en-têtes JSON, corps facultatif.
+      - key: SMS_HTTP_URL
+        sync: false
+      - key: SMS_HTTP_METHOD
+        sync: false
+      - key: SMS_HTTP_HEADERS
+        sync: false
+      - key: SMS_HTTP_BODY
+        sync: false
+      # Adresse publique de l'API (liens des CGU et de la politique de confidentialité).
+      - key: PUBLIC_URL
+        value: https://eza-zozo-api.onrender.com
+      # Cartes (facultatif) : serveurs d'itinéraire et d'adresses appelés par le serveur (cache + 1 requête/s).
+      # Par défaut : serveurs publics gratuits d'OpenStreetMap, sans garantie de service. Pour la production,
+      # pointez vers votre propre OSRM / Nominatim (gratuits à héberger) ou un service payant compatible.
+      - key: OSRM_URL
+        sync: false
+      - key: NOMINATIM_URL
+        sync: false
