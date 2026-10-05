@@ -94,7 +94,7 @@ services:
         sync: false
       # Adresse publique de l'API (liens des CGU et de la politique de confidentialité).
       - key: PUBLIC_URL
-        value: https://eza-zozo-api.onrender.com
+        value: https://eza-zozo-api-5fib.onrender.com
       # Cartes (facultatif) : serveurs d'itinéraire et d'adresses appelés par le serveur (cache + 1 requête/s).
       # Par défaut : serveurs publics gratuits d'OpenStreetMap, sans garantie de service. Pour la production,
       # pointez vers votre propre OSRM / Nominatim (gratuits à héberger) ou un service payant compatible.

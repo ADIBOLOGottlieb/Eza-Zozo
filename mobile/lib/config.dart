@@ -6,7 +6,7 @@
 /// Le HTTP en clair n'est autorisé que dans les builds debug/profile.
 const String apiBaseUrl = String.fromEnvironment(
   'API_URL',
-  defaultValue: 'https://eza-zozo-api.onrender.com',
+  defaultValue: 'https://eza-zozo-api-5fib.onrender.com',
 );
 
 /// Transforme un chemin relatif (`/uploads/...`) renvoyé par l'API en URL complète.

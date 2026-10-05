@@ -97,7 +97,7 @@ flutter run
 flutter run --dart-define=API_URL=http://192.168.1.20:4000
 ```
 
-APK : `flutter build apk --release --dart-define=API_URL=https://eza-zozo-api.onrender.com --dart-define=GOOGLE_MAPS_API_KEY=VOTRE_CLE`
+APK : `flutter build apk --release --dart-define=API_URL=https://eza-zozo-api-5fib.onrender.com --dart-define=GOOGLE_MAPS_API_KEY=VOTRE_CLE`
 
 La CI GitHub (`.github/workflows/build-apk.yml`) analyse le code, lance les tests et produit l'APK à chaque push sur `main` qui touche `mobile/` (onglet **Actions** → *Build APK* → *Artifacts*). Les tests du backend (`npm test`) tournent à chaque push qui touche `backend/`.
 
@@ -151,7 +151,7 @@ Sans prestataire configuré (`PAYMENT_PROVIDER=simulation`, valeur actuelle sur 
 ### Mise en place de PayGate Global (recommandé au Togo)
 1. Créez le compte marchand sur paygateglobal.com et fournissez les pièces de l'entreprise.
 2. Récupérez la clé API (`auth_token`) dans le tableau de bord, puis sur Render : `PAYMENT_PROVIDER=paygate` et `PAYGATE_AUTH_TOKEN=…`.
-3. Déclarez l'URL de retour (callback) : `https://eza-zozo-api.onrender.com/api/payments/paygate/webhook`. Elle n'est pas signée : le serveur revérifie systématiquement chaque paiement via `/api/v2/status`.
+3. Déclarez l'URL de retour (callback) : `https://eza-zozo-api-5fib.onrender.com/api/payments/paygate/webhook`. Elle n'est pas signée : le serveur revérifie systématiquement chaque paiement via `/api/v2/status`.
 4. Indiquez la commission de votre contrat PayGate dans `PROVIDER_FEE_PERCENT_FLOOZ` / `PROVIDER_FEE_PERCENT_MIXX` (voir ci-dessous).
 
 Flooz utilise le réseau `FLOOZ`, Mixx by Yas (ex-T-Money) le réseau `TMONEY`.
@@ -230,7 +230,7 @@ Un livreur désactivé ne peut plus se connecter ; ses livraisons en cours reste
 Fonctionnement : au démarrage, la dernière sauvegarde est restaurée (jamais par-dessus une base non vide) ; ensuite, la base est envoyée au plus toutes les 60 s après un changement, toutes les 15 min et à l'arrêt du serveur ; les photos nouvelles sont envoyées une par une. Limites : jusqu'à ~60 s d'écritures perdues en cas d'arrêt brutal, et quelques secondes lors d'un redéploiement. Pour revenir à une version antérieure : remettre l'ancien `ezazozo/eza_zozo.db` en dernier commit du dépôt, puis redémarrer le service. C'est une solution gratuite de secours ; pour une exploitation sérieuse, préférez un disque persistant (offre payante Render) ou une base hébergée.
 
 ### Garder le serveur éveillé
-La tâche GitHub `keep-alive` n'est pas fiable (GitHub espace les tâches planifiées de plusieurs heures). Utilisez plutôt **UptimeRobot** (gratuit, sans carte bancaire) : *Add New Monitor* → type **HTTP(s)** → URL `https://eza-zozo-api.onrender.com/api/health` → intervalle **5 minutes**.
+La tâche GitHub `keep-alive` n'est pas fiable (GitHub espace les tâches planifiées de plusieurs heures). Utilisez plutôt **UptimeRobot** (gratuit, sans carte bancaire) : *Add New Monitor* → type **HTTP(s)** → URL `https://eza-zozo-api-5fib.onrender.com/api/health` → intervalle **5 minutes**.
 
 ### Avant la mise en service réelle
 - `PAYMENT_PROVIDER=paygate` (ou kadev) et **retirer `ALLOW_SIMULATION`** : en simulation, n'importe quel client peut valider lui-même son paiement.
@@ -244,7 +244,7 @@ Le même code Flutter produit les deux applications. Les builds se font sur les 
 
 ### Android — Google Play
 1. Compte **Google Play Console** au nom du restaurant (25 $, une fois). Préférez un compte « Organisation » (numéro D-U-N-S gratuit) : un compte personnel impose 14 jours de test fermé avec 12 testeurs avant la publication.
-2. Créer l'application `com.ezazozo.app`, remplir la fiche (icône, captures, description), le formulaire **Sécurité des données** (téléphone, position, photos) et le lien de confidentialité `https://eza-zozo-api.onrender.com/legal/confidentialite`.
+2. Créer l'application `com.ezazozo.app`, remplir la fiche (icône, captures, description), le formulaire **Sécurité des données** (téléphone, position, photos) et le lien de confidentialité `https://eza-zozo-api-5fib.onrender.com/legal/confidentialite`.
 3. Envoyer à la main la **première** version : le fichier `app-release.aab` de l'artefact `eza-zozo-aab` (workflow *Build APK*). Activer « Play App Signing » (Google garde la clé de distribution ; la clé de la CI sert de clé d'importation).
 4. Ensuite, automatique : créer un compte de service Google Cloud, l'inviter dans la Play Console, et mettre sa clé JSON dans le secret GitHub `PLAY_SERVICE_ACCOUNT_JSON`. Chaque build part alors dans la piste **Tests internes** (brouillon) ; on le promeut en production depuis la console. Examen par Google : quelques heures à quelques jours.
 

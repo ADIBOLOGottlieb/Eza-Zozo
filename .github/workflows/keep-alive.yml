@@ -17,4 +17,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping /api/health
-        run: curl -fsS --max-time 90 --retry 2 https://eza-zozo-api.onrender.com/api/health
+        run: curl -fsS --max-time 90 --retry 2 https://eza-zozo-api-5fib.onrender.com/api/health

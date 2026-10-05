@@ -1048,5 +1048,5 @@ delivery.startDeliveryTasks();
 const PORT = Number(process.env.PORT) || 4000;
 app.listen(PORT, '0.0.0.0', () => {
   log.info('démarrage', { port: PORT, payment: payments.paymentInfo(), fees: payments.feeInfo() });
-  console.log(`🐔 API Eza Zozo sur http://localhost:${PORT}`);
+  console.log(`🐟 API Eza Zozo sur http://localhost:${PORT}`);
 });
