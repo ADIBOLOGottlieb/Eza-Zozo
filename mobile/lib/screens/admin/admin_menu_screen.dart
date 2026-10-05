@@ -282,7 +282,7 @@ class _CategoryDialog extends StatefulWidget {
 
 class _CategoryDialogState extends State<_CategoryDialog> {
   late final TextEditingController _name = TextEditingController(text: widget.category?.name ?? '');
-  late String? _icon = widget.category?.icon ?? 'chicken';
+  late String? _icon = widget.category?.icon ?? 'fish';
 
   @override
   void dispose() {

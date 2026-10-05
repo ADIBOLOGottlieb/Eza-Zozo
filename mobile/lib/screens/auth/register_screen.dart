@@ -203,7 +203,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           const Center(child: AppLogo(size: 100)),
           const SizedBox(height: 12),
           Text(
-            'Bienvenue chez Eza Zozo 🍔',
+            'Bienvenue chez Eza Zozo 🐟',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 16, color: cs.onSurfaceVariant),
           ),

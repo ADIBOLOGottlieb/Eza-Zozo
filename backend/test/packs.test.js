@@ -95,15 +95,15 @@ test('packs : catalogue, création, disponibilité, commande', async (t) => {
   let products = (await cust.call('GET', '/api/products')).data;
   const solo = products.find((p) => p.name === 'Pack Solo');
   assert.ok(solo && solo.is_pack);
-  assert.deepEqual(solo.pack_items.map((i) => [i.name, i.quantity]), [['Demi-poulet braisé', 1], ['Alloco', 1], ['Bissap', 1]]);
-  assert.equal(solo.pack_value, 3800 + 1000 + 700);
-  assert.equal(solo.savings, 5500 - 4900);
+  assert.deepEqual(solo.pack_items.map((i) => [i.name, i.quantity]), [['Tilapia braisé', 1], ['Attiéké', 1], ['Bissap', 1]]);
+  assert.equal(solo.pack_value, 3500 + 700 + 700);
+  assert.equal(solo.savings, 4900 - 4500);
   const plain = products.find((p) => p.name === 'Alloco');
   assert.equal(plain.is_pack, false);
   assert.deepEqual(plain.pack_items, []);
 
   // Création d'un pack par le gérant.
-  const burger = products.find((p) => p.name === 'Chicken Burger');
+  const burger = products.find((p) => p.name === 'Tilapia frit');
   const fries = products.find((p) => p.name === 'Frites maison');
   const created = await admin.call('POST', '/api/admin/products', {
     name: 'Pack Midi', price: 3500, category_id: packsCat.id,
@@ -128,12 +128,12 @@ test('packs : catalogue, création, disponibilité, commande', async (t) => {
     items: [{ product_id: solo.id, quantity: 2 }], phone: '93111111', mode: 'pickup', payment_method: 'cash',
   });
   assert.equal(order.status, 201, JSON.stringify(order.data));
-  assert.equal(order.data.subtotal, 9800);
-  assert.equal(order.data.items[0].details, '1× Demi-poulet braisé, 1× Alloco, 1× Bissap');
+  assert.equal(order.data.subtotal, 9000);
+  assert.equal(order.data.items[0].details, '1× Tilapia braisé, 1× Attiéké, 1× Bissap');
 
   // Plat épuisé : le pack disparaît du catalogue client et ne peut plus être commandé.
-  const alloco = products.find((p) => p.name === 'Alloco');
-  await admin.call('PATCH', `/api/admin/products/${alloco.id}/availability`, { available: false });
+  const attieke = products.find((p) => p.name === 'Attiéké');
+  await admin.call('PATCH', `/api/admin/products/${attieke.id}/availability`, { available: false });
   products = (await cust.call('GET', '/api/products')).data;
   assert.ok(!products.some((p) => p.name === 'Pack Solo'));
   const adminList = (await admin.call('GET', '/api/products?all=1')).data;

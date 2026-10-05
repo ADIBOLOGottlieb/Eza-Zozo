@@ -27,8 +27,8 @@ services:
       - key: TRUST_PROXY
         value: "1"
       - key: ADMIN_PHONE
-        value: "0700000000"
-      # Demandé lors de la création : choisissez un mot de passe solide.
+        value: "71572566"
+      # Demandé lors de la création (jamais dans le dépôt, qui est public) : mot de passe du propriétaire.
       - key: ADMIN_PASSWORD
         sync: false
       # ---------- Paiements mobile money (Flooz / Mixx by Yas) ----------

@@ -56,7 +56,7 @@ npm install
 npm start
 ```
 
-Au premier lancement, l'API crée la base `eza_zozo.db`, un menu de démonstration et un compte admin (`0700000000` / `admin123`, ou `ADMIN_PHONE` / `ADMIN_PASSWORD`). Changez ce mot de passe tout de suite.
+Au premier lancement, l'API crée la base `eza_zozo.db`, un menu de démonstration et le compte propriétaire `ADMIN_PHONE` / `ADMIN_PASSWORD` (sur Render : `71572566` et le mot de passe saisi dans Render ; en local sans variables : `71572566` / `admin123`). Le mot de passe n'est jamais écrit dans le dépôt.
 
 ### Variables d'environnement
 

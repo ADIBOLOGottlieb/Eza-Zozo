@@ -2,44 +2,47 @@ const bcrypt = require('bcryptjs');
 const { db, transaction } = require('./db');
 const { normalizePhone } = require('./auth');
 
+// Menu de démonstration Eza Zozo : du poisson, préparé de plusieurs façons.
 const CATEGORIES = [
-  { name: 'Poulets', icon: 'chicken' },
-  { name: 'Burgers', icon: 'burger' },
-  { name: 'Grillades', icon: 'grill' },
+  { name: 'Poissons braisés', icon: 'fish' },
+  { name: 'Poissons frits', icon: 'fish' },
+  { name: 'Poissons en sauce', icon: 'soup' },
   { name: 'Accompagnements', icon: 'fries' },
   { name: 'Boissons', icon: 'drink' },
-  { name: 'Desserts', icon: 'dessert' },
   { name: 'Packs', icon: 'pack' },
 ];
 
 // Packs de démonstration : [nom, description, prix FCFA, populaire, image, [[nom du plat, quantité], ...]]
 const PACKS = [
-  ['Pack Solo', 'Le repas complet pour une personne', 4900, 1, 'https://images.unsplash.com/photo-1532550907401-a500c9a57435?w=800',
-    [['Demi-poulet braisé', 1], ['Alloco', 1], ['Bissap', 1]]],
-  ['Pack Duo', 'Pour deux : burgers, frites et boissons', 8500, 0, 'https://images.unsplash.com/photo-1606755962773-d324e0a13086?w=800',
-    [['Chicken Burger', 2], ['Frites maison', 2], ['Coca-Cola', 2]]],
-  ['Pack Famille', 'Poulet entier et accompagnements pour 4', 12000, 1, 'https://images.unsplash.com/photo-1598103442097-8b74394b95c6?w=800',
-    [['Poulet braisé entier', 1], ['Alloco', 2], ['Frites maison', 2], ['Bissap', 4]]],
+  ['Pack Solo', 'Tilapia braisé, attiéké et bissap pour une personne', 4500, 1, 'https://images.unsplash.com/photo-1510130387422-82bed34b37e9?w=800',
+    [['Tilapia braisé', 1], ['Attiéké', 1], ['Bissap', 1]]],
+  ['Pack Duo', 'Pour deux : tilapias frits, alloco et boissons', 8500, 0, 'https://images.unsplash.com/photo-1580476262798-bddd9f4b7369?w=800',
+    [['Tilapia frit', 2], ['Alloco', 2], ['Bissap', 2]]],
+  ['Pack Famille', 'Daurade et bar braisés avec accompagnements pour 4', 15500, 1, 'https://images.unsplash.com/photo-1611171711912-e3f6b536f532?w=800',
+    [['Daurade braisée', 1], ['Bar braisé', 1], ['Attiéké', 4], ['Alloco', 2], ['Bissap', 4]]],
 ];
 
-// [category index, name, description, price FCFA, popular, image]
+// [category index, name, description, price FCFA, popular, image (null = sans photo)]
 const PRODUCTS = [
-  [0, 'Poulet braisé entier', 'Poulet fermier braisé au feu de bois, sauce pimentée maison', 7000, 1, 'https://images.unsplash.com/photo-1598103442097-8b74394b95c6?w=800'],
-  [0, 'Demi-poulet braisé', 'Demi-poulet braisé, oignons et piment frais', 3800, 1, 'https://images.unsplash.com/photo-1532550907401-a500c9a57435?w=800'],
-  [0, 'Poulet frit croustillant (6 pcs)', 'Morceaux de poulet panés et croustillants, recette maison', 4500, 1, 'https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=800'],
-  [0, 'Ailes de poulet épicées (8 pcs)', 'Ailes marinées et grillées, sauce barbecue', 3500, 0, 'https://images.unsplash.com/photo-1608039755401-742074f0548d?w=800'],
-  [1, 'Chicken Burger', 'Filet de poulet croustillant, salade, tomate, sauce maison', 3000, 1, 'https://images.unsplash.com/photo-1606755962773-d324e0a13086?w=800'],
-  [1, 'Double Cheese Chicken', 'Double filet de poulet, cheddar fondu, oignons caramélisés', 4200, 0, 'https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=800'],
-  [2, 'Brochettes de bœuf', '4 brochettes de bœuf marinées, sauce arachide', 3500, 0, 'https://images.unsplash.com/photo-1603360946369-dc9bb6258143?w=800'],
-  [2, 'Steak grillé', 'Steak de bœuf grillé, légumes sautés', 5500, 0, 'https://images.unsplash.com/photo-1546964124-0cce460f38ef?w=800'],
-  [3, 'Attiéké', 'Portion d\'attiéké frais', 700, 0, 'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=800'],
+  [0, 'Tilapia braisé', 'Tilapia entier braisé au feu de bois, oignons et piment frais', 3500, 1, 'https://images.unsplash.com/photo-1510130387422-82bed34b37e9?w=800'],
+  [0, 'Daurade braisée', 'Daurade entière marinée aux épices, braisée au charbon', 4500, 1, 'https://images.unsplash.com/photo-1611171711912-e3f6b536f532?w=800'],
+  [0, 'Bar braisé', 'Bar (capitaine) braisé, sauce pimentée maison', 5500, 0, 'https://images.unsplash.com/photo-1611599537845-1c7aca0091c0?w=800'],
+  [0, 'Brochettes de poisson (4 pcs)', 'Morceaux de poisson marinés et grillés en brochettes', 3000, 0, 'https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?w=800'],
+  [1, 'Tilapia frit', 'Tilapia entier frit, croustillant, servi avec sauce tomate pimentée', 3000, 1, 'https://images.unsplash.com/photo-1580476262798-bddd9f4b7369?w=800'],
+  [1, 'Filet de poisson croustillant', 'Filets de poisson panés et frits, citron', 3000, 0, 'https://images.unsplash.com/photo-1580959375944-abd7e991f971?w=800'],
+  [1, 'Chinchard frit', 'Chinchards frits, oignons et piment', 2000, 0, 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=800'],
+  [2, 'Poisson sauce tomate', 'Poisson mijoté dans une sauce tomate aux épices', 3500, 1, 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=800'],
+  [2, 'Poisson sauce feuilles', 'Poisson cuit dans une sauce aux feuilles vertes', 3500, 0, 'https://images.unsplash.com/photo-1485921325833-c519f76c4927?w=800'],
+  [2, "Poisson à l'étouffée", "Poisson cuit à l'étouffée avec légumes frais", 4000, 0, 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=800'],
+  [3, 'Attiéké', "Portion d'attiéké frais", 700, 1, 'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=800'],
   [3, 'Alloco', 'Bananes plantain frites', 1000, 1, 'https://images.unsplash.com/photo-1528751014936-863e6e7a319c?w=800'],
+  [3, 'Akoumé', 'Pâte de maïs', 500, 0, null],
   [3, 'Frites maison', 'Frites croustillantes', 1000, 0, 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=800'],
   [3, 'Salade fraîche', 'Laitue, tomate, concombre, oignon', 1200, 0, 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800'],
-  [4, 'Bissap', 'Jus d\'hibiscus maison (50 cl)', 700, 0, 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=800'],
+  [4, 'Bissap', "Jus d'hibiscus maison (50 cl)", 700, 0, 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=800'],
   [4, 'Gnamakoudji', 'Jus de gingembre maison (50 cl)', 700, 0, 'https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=800'],
+  [4, 'Eau minérale', 'Bouteille 50 cl', 500, 0, null],
   [4, 'Coca-Cola', 'Canette 33 cl', 800, 0, 'https://images.unsplash.com/photo-1554866585-cd94860890b7?w=800'],
-  [5, 'Salade de fruits', 'Fruits frais de saison', 1500, 0, 'https://images.unsplash.com/photo-1564093497595-593b96d80180?w=800'],
 ];
 
 /**
@@ -56,7 +59,7 @@ function createDefaultAdmin() {
     );
     return false;
   }
-  const phone = normalizePhone(process.env.ADMIN_PHONE || '0700000000') || '0700000000';
+  const phone = normalizePhone(process.env.ADMIN_PHONE || '71572566') || '71572566';
   if (db.prepare('SELECT id FROM users WHERE phone = ?').get(phone)) {
     console.error(`❌ ADMIN_PHONE ${phone} appartient déjà à un compte non administrateur : admin NON créé.`);
     return false;
@@ -100,7 +103,7 @@ function seedIfEmpty() {
         insertPack.run(packsCat, name, desc, price, popular, img, JSON.stringify(content));
       }
     });
-    console.log('🍗 Menu de démonstration ajouté');
+    console.log('🐟 Menu de démonstration ajouté');
   }
 }
 

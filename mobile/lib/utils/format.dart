@@ -270,6 +270,7 @@ const categoryIcons = <String, String>{
   'salad': '🥗',
   'rice': '🍛',
   'fish': '🐟',
+  'soup': '🍲',
 };
 
 String categoryEmoji(String? icon) => categoryIcons[icon] ?? '🍽️';

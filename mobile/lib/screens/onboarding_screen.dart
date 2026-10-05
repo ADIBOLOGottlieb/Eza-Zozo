@@ -55,9 +55,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
             onPageChanged: (i) => setState(() => _currentPage = i),
             children: [
               _OnboardingPage(
-                emoji: '🍔',
+                emoji: '🐟',
                 title: 'Bienvenue chez Eza Zozo',
-                description: 'Vos plats préférés de Lomé, préparés minute et livrés chauds à votre porte.',
+                description: 'Le poisson comme vous l\'aimez : braisé, frit ou en sauce, livré chaud à votre porte à Lomé.',
               ),
               _OnboardingPage(
                 emoji: '🔍',
