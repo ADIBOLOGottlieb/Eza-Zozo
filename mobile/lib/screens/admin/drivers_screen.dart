@@ -101,7 +101,7 @@ class _DriversScreenState extends State<DriversScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _add,
-        backgroundColor: AppColors.blue,
+        backgroundColor: AppColors.brand,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.person_add_alt_1_rounded),
         label: const Text('Ajouter un livreur'),
@@ -165,7 +165,7 @@ class _DriverTile extends StatelessWidget {
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: d.active ? AppColors.yellow : scheme.onSurface.withValues(alpha: 0.10),
+                  backgroundColor: d.active ? AppColors.accent : scheme.onSurface.withValues(alpha: 0.10),
                   child: Text(
                     d.name.isEmpty ? '?' : d.name[0].toUpperCase(),
                     style: TextStyle(fontWeight: FontWeight.w900, color: d.active ? Colors.black87 : muted),

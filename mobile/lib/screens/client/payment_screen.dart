@@ -307,7 +307,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
               showSelectedIcon: false,
               onSelectionChanged: _busy ? null : (s) => _changeOperator(s.first),
               style: SegmentedButton.styleFrom(
-                selectedBackgroundColor: AppColors.blue,
+                selectedBackgroundColor: AppColors.brand,
                 selectedForegroundColor: Colors.white,
                 backgroundColor: scheme.surface,
               ),
@@ -399,8 +399,8 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
             scale: Tween(begin: 0.9, end: 1.08).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut)),
             child: CircleAvatar(
               radius: 44,
-              backgroundColor: AppColors.blue.withValues(alpha: 0.12),
-              child: const Icon(Icons.phonelink_ring_rounded, size: 46, color: AppColors.blue),
+              backgroundColor: AppColors.brand.withValues(alpha: 0.12),
+              child: Icon(Icons.phonelink_ring_rounded, size: 46, color: brandColor(context)),
             ),
           ),
         ),
@@ -429,7 +429,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
                   value: over ? null : fraction,
                   strokeWidth: 6,
                   backgroundColor: scheme.surfaceContainerHighest,
-                  color: AppColors.blue,
+                  color: brandColor(context),
                 ),
                 Center(
                   child: Text(
@@ -452,8 +452,8 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.yellow.withValues(alpha: 0.18),
-              border: Border.all(color: AppColors.yellow),
+              color: AppColors.accent.withValues(alpha: 0.18),
+              border: Border.all(color: AppColors.accent),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Column(
@@ -594,7 +594,7 @@ class _AmountRow extends StatelessWidget {
     final style = TextStyle(
       fontWeight: bold ? FontWeight.w900 : FontWeight.w500,
       fontSize: bold ? 17 : 14,
-      color: bold ? AppColors.blue : scheme.onSurfaceVariant,
+      color: bold ? brandColor(context) : scheme.onSurfaceVariant,
     );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),

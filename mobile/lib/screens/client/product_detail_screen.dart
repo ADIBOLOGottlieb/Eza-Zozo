@@ -66,7 +66,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             expandedHeight: 330,
             pinned: true,
             stretch: true,
-            backgroundColor: AppColors.blue,
+            backgroundColor: AppColors.brand,
             foregroundColor: Colors.white,
             leading: Padding(
               padding: const EdgeInsets.all(8),
@@ -105,7 +105,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 10),
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(color: AppColors.yellow, borderRadius: BorderRadius.circular(20)),
+                        decoration: BoxDecoration(color: AppColors.accent, borderRadius: BorderRadius.circular(20)),
                         // Texte foncé fixe : le fond jaune ne change pas avec le thème.
                         child: const Text('🔥 Populaire',
                             style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AppColors.ink)),
@@ -187,7 +187,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                     constraints: const BoxConstraints(minWidth: 38),
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: isDark ? scheme.onSurface.withValues(alpha: 0.08) : AppColors.sky,
+                                      color: isDark ? scheme.onSurface.withValues(alpha: 0.08) : AppColors.tint,
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Text('${c.quantity}×',
@@ -213,7 +213,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       // Crème en clair ; léger voile en sombre (le crème rendait le texte clair invisible).
                       decoration: BoxDecoration(
-                        color: isDark ? scheme.onSurface.withValues(alpha: 0.08) : AppColors.sky,
+                        color: isDark ? scheme.onSurface.withValues(alpha: 0.08) : AppColors.tint,
                         borderRadius: BorderRadius.circular(18),
                       ),
                       child: Row(
@@ -255,7 +255,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOut,
             decoration: BoxDecoration(
-              color: _added ? AppColors.green : AppColors.blue,
+              color: _added ? AppColors.green : brandColor(context),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Material(

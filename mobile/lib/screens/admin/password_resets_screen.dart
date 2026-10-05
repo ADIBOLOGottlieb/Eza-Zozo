@@ -149,7 +149,7 @@ class _ResetCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.person_rounded, color: AppColors.blue),
+                Icon(Icons.person_rounded, color: brandColor(context)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(

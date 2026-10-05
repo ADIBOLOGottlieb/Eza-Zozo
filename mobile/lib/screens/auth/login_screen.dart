@@ -53,7 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
               clipBehavior: Clip.antiAlias,
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [AppColors.blue, AppColors.darkBlue],
+                  colors: [AppColors.brand, AppColors.brandDark],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -155,10 +155,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Text.rich(TextSpan(
                         text: 'Pas encore de compte ? ',
                         style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                        children: const [
+                        children: [
                           TextSpan(
                             text: 'Créer un compte',
-                            style: TextStyle(color: AppColors.blue, fontWeight: FontWeight.w800),
+                            style: TextStyle(color: brandColor(context), fontWeight: FontWeight.w800),
                           ),
                         ],
                       )),

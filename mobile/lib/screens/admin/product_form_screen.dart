@@ -222,7 +222,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                       ),
                       const SizedBox(width: 8),
                       IconButton.filled(
-                        style: IconButton.styleFrom(backgroundColor: AppColors.blue),
+                        style: IconButton.styleFrom(backgroundColor: AppColors.brand),
                         onPressed: _uploading ? null : () => _pickImage(ImageSource.gallery),
                         icon: const Icon(Icons.photo_library_rounded),
                       ),
@@ -443,7 +443,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               margin: const EdgeInsets.only(top: 8),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.yellow.withValues(alpha: 0.18),
+                color: AppColors.accent.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(

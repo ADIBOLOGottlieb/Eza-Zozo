@@ -55,17 +55,17 @@ function page(res, { title, body, script = '', nonce = '' }) {
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)} – Eza Zozo</title>
 <style>
-  *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#FFF8EC;color:#2B1B17}
-  header{background:linear-gradient(135deg,#D7182A,#A50E1E);color:#fff;padding:28px 20px 60px;text-align:center}
-  header img{width:84px;height:84px;border-radius:50%;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+  *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#FAF7F4;color:#2B1B17}
+  header{background:linear-gradient(135deg,#831219,#5E0B10);color:#fff;padding:28px 20px 60px;text-align:center}
+  header img{width:84px;height:84px;border-radius:50%;object-fit:contain;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.2)}
   header h1{font-size:20px;margin:12px 0 0}
   main{max-width:460px;margin:-40px auto 24px;padding:0 16px}
-  .card{background:#fff;border-radius:20px;padding:20px;box-shadow:0 8px 30px rgba(165,14,30,.12)}
+  .card{background:#fff;border-radius:20px;padding:20px;box-shadow:0 8px 30px rgba(131,18,25,.12)}
   .row{display:flex;justify-content:space-between;padding:6px 0;color:#7A6A64} .row b{color:#2B1B17}
-  .total{border-top:1px dashed #e5d8cf;margin-top:8px;padding-top:12px;font-size:18px} .total b{color:#D7182A}
+  .total{border-top:1px dashed #e5d8cf;margin-top:8px;padding-top:12px;font-size:18px} .total b{color:#831219}
   button,.btn{display:block;width:100%;border:0;border-radius:14px;padding:16px;font-size:16px;font-weight:700;margin-top:14px;cursor:pointer;text-align:center;text-decoration:none}
-  .primary{background:#D7182A;color:#fff} .ghost{background:#f1e9e2;color:#2B1B17} .ok{background:#2E9E5B;color:#fff}
-  .badge{display:inline-block;background:#FFB800;color:#2B1B17;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:700}
+  .primary{background:#831219;color:#fff} .ghost{background:#f1e9e2;color:#2B1B17} .ok{background:#2E9E5B;color:#fff}
+  .badge{display:inline-block;background:#DDA746;color:#2B1B17;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:700}
   .muted{color:#7A6A64;font-size:13px;text-align:center;margin-top:14px} .center{text-align:center}
   .big{font-size:54px;text-align:center;margin:4px 0}
 </style></head>

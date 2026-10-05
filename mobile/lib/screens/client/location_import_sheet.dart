@@ -481,7 +481,7 @@ class _LocationImportSheetState extends State<_LocationImportSheet> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.location_on_rounded, color: AppColors.blue),
+              Icon(Icons.location_on_rounded, color: brandColor(context)),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -601,16 +601,16 @@ class _Step extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: AppColors.blue.withValues(alpha: 0.12),
+              color: AppColors.brand.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: AppColors.blue),
+            child: Icon(icon, color: brandColor(context)),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text.rich(
               TextSpan(children: [
-                TextSpan(text: '$number. ', style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.blue)),
+                TextSpan(text: '$number. ', style: TextStyle(fontWeight: FontWeight.w900, color: brandColor(context))),
                 TextSpan(text: text),
               ]),
               style: TextStyle(fontSize: 14.5, color: cs.onSurface),

@@ -231,7 +231,7 @@ class _ZoneTile extends StatelessWidget {
                         if (zone.hasArea)
                           pill(
                             'Reconnue automatiquement · ${formatPercent(zone.radiusKm!)} km',
-                            dark ? scheme.primary : AppColors.blue,
+                            dark ? scheme.primary : AppColors.brand,
                             Icons.my_location_rounded,
                           ),
                       ],
@@ -455,9 +455,9 @@ class _ZoneFormScreenState extends State<_ZoneFormScreen> {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: hasCenter ? scheme.surfaceContainerHighest : AppColors.blue.withValues(alpha: 0.08),
+                    color: hasCenter ? scheme.surfaceContainerHighest : AppColors.brand.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(14),
-                    border: hasCenter ? null : Border.all(color: AppColors.blue.withValues(alpha: 0.35)),
+                    border: hasCenter ? null : Border.all(color: AppColors.brand.withValues(alpha: 0.35)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -467,7 +467,7 @@ class _ZoneFormScreenState extends State<_ZoneFormScreen> {
                         children: [
                           Icon(
                             hasCenter ? Icons.place : Icons.location_off_outlined,
-                            color: hasCenter ? (dark ? AppColors.darkTertiary : AppColors.green) : AppColors.blue,
+                            color: hasCenter ? (dark ? AppColors.darkTertiary : AppColors.green) : brandColor(context),
                           ),
                           const SizedBox(width: 10),
                           Expanded(

@@ -145,7 +145,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
                       children: [
                         Icon(
                           o.hasLocation ? Icons.location_on_rounded : Icons.location_off_outlined,
-                          color: o.hasLocation ? AppColors.blue : cs.onSurfaceVariant,
+                          color: o.hasLocation ? brandColor(context) : cs.onSurfaceVariant,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -200,7 +200,7 @@ class _DriverOrderDetailScreenState extends State<DriverOrderDetailScreen> {
             _bigButton(
               icon: Icons.delivery_dining_rounded,
               label: 'Je prends cette livraison',
-              color: AppColors.blue,
+              color: brandColor(context),
               onPressed: () => _act(() => takeDelivery(context, o), taken: true),
             ),
           ] else if (canMarkDelivered(o, me)) ...[

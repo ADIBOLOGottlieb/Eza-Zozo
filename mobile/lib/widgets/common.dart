@@ -9,138 +9,34 @@ import '../services/api.dart';
 import '../theme.dart';
 import '../utils/format.dart';
 
-/// Logo Eza Zozo (restaurant de poisson) : un poisson jaune, « Eza » blanc et « Zozo » jaune ombré de noir en
-/// italique, puis une vague, sur un badge bleu cerclé de jaune. Dessiné (pas d'image) : net à toutes les tailles.
-/// Même dessin que l'icône (assets/images/logo.png, générée par tool/make_logo.ps1).
+/// Logo du restaurant Eza Zozo (assets/images/logo_full.png, tiré de logo_source.png par tool/make_logo.ps1),
+/// dans une pastille blanche ronde : lisible en clair comme en sombre.
 class AppLogo extends StatelessWidget {
   final double size;
   const AppLogo({super.key, this.size = 120});
 
   @override
   Widget build(BuildContext context) {
-    final s = size;
-    TextStyle word(Color color, {List<Shadow>? shadows}) => TextStyle(
-          fontFamily: 'Poppins',
-          fontWeight: FontWeight.w900,
-          fontSize: s * 0.27,
-          height: 1.0,
-          letterSpacing: -s * 0.006,
-          color: color,
-          shadows: shadows,
-        );
     return Semantics(
       label: 'Eza Zozo',
       image: true,
       child: Container(
-        width: s,
-        height: s,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.blue, AppColors.darkBlue],
-          ),
-          border: Border.all(color: AppColors.yellow, width: s * 0.035),
+          color: Colors.white,
+          border: Border.all(color: AppColors.accent, width: size * 0.025),
           boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: s * 0.15, offset: Offset(0, s * 0.05)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: size * 0.12, offset: Offset(0, size * 0.04)),
           ],
         ),
-        padding: EdgeInsets.fromLTRB(s * 0.16, s * 0.12, s * 0.16, s * 0.13),
-        child: FittedBox(
-          child: MediaQuery.withNoTextScaling(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CustomPaint(size: Size(s * 0.36, s * 0.17), painter: const _FishPainter()),
-                SizedBox(height: s * 0.02),
-                Transform(
-                  alignment: Alignment.center,
-                  transform: Matrix4.skewX(-0.18),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('Eza', style: word(Colors.white)),
-                      Text('Zozo',
-                          style: word(AppColors.yellow,
-                              shadows: [Shadow(color: AppColors.ink, offset: Offset(s * 0.012, s * 0.018))])),
-                    ],
-                  ),
-                ),
-                SizedBox(height: s * 0.03),
-                CustomPaint(size: Size(s * 0.46, s * 0.06), painter: _WavePainter(stroke: s * 0.028)),
-              ],
-            ),
-          ),
-        ),
+        alignment: Alignment.center,
+        // Logo rectangulaire : 80 % de la largeur, il tient entièrement dans le cercle.
+        child: Image.asset('assets/images/logo_full.png', width: size * 0.8, fit: BoxFit.contain),
       ),
     );
   }
-}
-
-/// Poisson du logo (tourné vers la gauche) : corps jaune, queue en V, œil bleu.
-class _FishPainter extends CustomPainter {
-  const _FishPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-    final body = Path()
-      ..moveTo(0, h * 0.5)
-      ..cubicTo(w * 0.2, -h * 0.02, w * 0.55, -h * 0.02, w * 0.74, h * 0.5)
-      ..lineTo(w, h * 0.08)
-      ..lineTo(w * 0.93, h * 0.5)
-      ..lineTo(w, h * 0.92)
-      ..lineTo(w * 0.74, h * 0.5)
-      ..cubicTo(w * 0.55, h * 1.02, w * 0.2, h * 1.02, 0, h * 0.5)
-      ..close();
-    canvas.drawPath(body, Paint()..color = AppColors.yellow);
-    canvas.drawCircle(Offset(w * 0.17, h * 0.42), h * 0.09, Paint()..color = AppColors.darkBlue);
-    // Ouïe : petit arc derrière l'œil.
-    canvas.drawArc(
-      Rect.fromCenter(center: Offset(w * 0.26, h * 0.5), width: w * 0.1, height: h * 0.55),
-      -0.9,
-      1.8,
-      false,
-      Paint()
-        ..color = AppColors.darkBlue
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = h * 0.07
-        ..strokeCap = StrokeCap.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Vague blanche sous le nom (l'eau).
-class _WavePainter extends CustomPainter {
-  final double stroke;
-  const _WavePainter({required this.stroke});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-    final path = Path()..moveTo(0, h * 0.5);
-    for (var i = 0; i < 3; i++) {
-      final x = w * i / 3;
-      path
-        ..quadraticBezierTo(x + w / 12, 0, x + w / 6, h * 0.5)
-        ..quadraticBezierTo(x + w / 4, h, x + w / 3, h * 0.5);
-    }
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = stroke < 1.5 ? 1.5 : stroke
-        ..strokeCap = StrokeCap.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _WavePainter oldDelegate) => oldDelegate.stroke != stroke;
 }
 
 /// Choix du thème (clair, système ou sombre), mémorisé sur l'appareil : client, livreur et personnel.
@@ -184,7 +80,7 @@ class ProductImage extends StatelessWidget {
     final placeholder = Container(
       width: width,
       height: height,
-      color: AppColors.yellow.withValues(alpha: 0.18),
+      color: AppColors.accent.withValues(alpha: 0.18),
       alignment: Alignment.center,
       child: const Text('🐟', style: TextStyle(fontSize: 34)),
     );
@@ -193,7 +89,7 @@ class ProductImage extends StatelessWidget {
     final shimmer = Container(
       width: width,
       height: height,
-      color: AppColors.yellow.withValues(alpha: 0.1),
+      color: AppColors.accent.withValues(alpha: 0.1),
       alignment: Alignment.center,
       child: const SizedBox(
         width: 40,
@@ -278,7 +174,7 @@ class QuantityStepper extends StatelessWidget {
     // (surfaceContainerHighest n'est pas défini dans le thème et retombe sur surface).
     final disabledBg = scheme.onSurface.withValues(alpha: 0.10);
     Widget btn(IconData icon, VoidCallback? onTap) => Material(
-          color: onTap == null ? disabledBg : AppColors.blue,
+          color: onTap == null ? disabledBg : brandColor(context),
           shape: const CircleBorder(),
           child: InkWell(
             customBorder: const CircleBorder(),
@@ -525,7 +421,7 @@ Future<bool> confirmDialog(BuildContext context, String title, String message,
         FilledButton(
           style: FilledButton.styleFrom(
             minimumSize: const Size(0, 44),
-            backgroundColor: danger ? AppColors.danger : AppColors.blue,
+            backgroundColor: danger ? AppColors.danger : AppColors.brand,
             foregroundColor: Colors.white,
           ),
           onPressed: () => Navigator.pop(ctx, true),
@@ -547,7 +443,7 @@ class Price extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final c = color ?? (theme.brightness == Brightness.dark ? theme.colorScheme.primary : AppColors.blue);
+    final c = color ?? (theme.brightness == Brightness.dark ? theme.colorScheme.primary : AppColors.brand);
     return Text(formatPrice(amount), style: TextStyle(fontSize: size, fontWeight: FontWeight.w800, color: c));
   }
 }
@@ -572,7 +468,7 @@ class PackBadge extends StatelessWidget {
       spacing: 5,
       runSpacing: 4,
       children: [
-        pill('🍱 Pack', AppColors.yellow, AppColors.ink),
+        pill('🍱 Pack', AppColors.accent, AppColors.ink),
         if (savings > 0) pill('−${formatPrice(savings)}', AppColors.green, Colors.white),
       ],
     );

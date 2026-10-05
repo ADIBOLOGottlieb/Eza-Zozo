@@ -360,7 +360,7 @@ class _CounterScreenState extends State<CounterScreen> {
         child: FilledButton(
           style: FilledButton.styleFrom(
             minimumSize: const Size.fromHeight(56),
-            backgroundColor: AppColors.blue,
+            backgroundColor: AppColors.brand,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
@@ -373,7 +373,7 @@ class _CounterScreenState extends State<CounterScreen> {
                   radius: 15,
                   backgroundColor: Colors.white,
                   child: Text('$_itemCount',
-                      style: const TextStyle(color: AppColors.blue, fontWeight: FontWeight.w900, fontSize: 14)),
+                      style: TextStyle(color: brandColor(context), fontWeight: FontWeight.w900, fontSize: 14)),
                 ),
               ),
               const SizedBox(width: 12),
@@ -463,7 +463,7 @@ class _CounterScreenState extends State<CounterScreen> {
         label: Text(label),
         selected: selected,
         showCheckmark: false,
-        selectedColor: AppColors.blue,
+        selectedColor: AppColors.brand,
         backgroundColor: scheme.surface,
         labelStyle: TextStyle(color: selected ? Colors.white : scheme.onSurface, fontWeight: FontWeight.w700),
         onSelected: (_) => setState(() => _categoryId = id),
@@ -481,7 +481,7 @@ class _CounterScreenState extends State<CounterScreen> {
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: qty > 0 ? AppColors.blue : Colors.transparent, width: 2),
+          side: BorderSide(color: qty > 0 ? brandColor(context) : Colors.transparent, width: 2),
         ),
         child: Stack(
           children: [
@@ -515,7 +515,7 @@ class _CounterScreenState extends State<CounterScreen> {
                   trigger: qty,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: AppColors.blue, borderRadius: BorderRadius.circular(20)),
+                    decoration: BoxDecoration(color: AppColors.brand, borderRadius: BorderRadius.circular(20)),
                     child: Text('×$qty',
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 15)),
                   ),
@@ -1038,7 +1038,7 @@ class _MomoPaymentDialogState extends State<_MomoPaymentDialog> {
     final p = _payment;
     final progress = _waitTotal.inSeconds <= 0 ? 0.0 : (_remaining.inSeconds / _waitTotal.inSeconds).clamp(0.0, 1.0);
     return [
-      const Icon(Icons.phonelink_ring_rounded, size: 52, color: AppColors.blue),
+      Icon(Icons.phonelink_ring_rounded, size: 52, color: brandColor(context)),
       const SizedBox(height: 10),
       const Text(
         'Le client confirme avec son code PIN…',

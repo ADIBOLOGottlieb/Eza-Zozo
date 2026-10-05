@@ -162,7 +162,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.sms_rounded, size: 56, color: AppColors.blue),
+        Icon(Icons.sms_rounded, size: 56, color: brandColor(context)),
         const SizedBox(height: 12),
         Text(
           'Entrez le code à 6 chiffres envoyé par SMS au ${_phone.text.trim()}.',
@@ -251,7 +251,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             children: [
               Checkbox(
                 value: _accepted,
-                activeColor: AppColors.blue,
+                activeColor: brandColor(context),
                 onChanged: (v) => setState(() => _accepted = v ?? false),
               ),
               Expanded(
@@ -265,15 +265,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         TextSpan(
                           text: 'conditions d\'utilisation',
                           recognizer: _termsTap,
-                          style: const TextStyle(
-                              color: AppColors.blue, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
+                          style: TextStyle(
+                              color: brandColor(context), fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
                         ),
                         const TextSpan(text: ' et la '),
                         TextSpan(
                           text: 'politique de confidentialité',
                           recognizer: _privacyTap,
-                          style: const TextStyle(
-                              color: AppColors.blue, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
+                          style: TextStyle(
+                              color: brandColor(context), fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
                         ),
                         const TextSpan(text: '.'),
                       ],

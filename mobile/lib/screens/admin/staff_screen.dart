@@ -184,7 +184,7 @@ class _StaffScreenState extends State<StaffScreen> {
       floatingActionButton: owner
           ? FloatingActionButton.extended(
               onPressed: _add,
-              backgroundColor: AppColors.blue,
+              backgroundColor: AppColors.brand,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.person_add_alt_1_rounded),
               label: const Text('Ajouter un gérant'),
@@ -302,7 +302,7 @@ class _StaffTile extends StatelessWidget {
     final m = member;
     final muted = scheme.onSurfaceVariant;
     final gold = _goldColor(dark);
-    final levelColor = m.isOwner ? gold : (dark ? scheme.primary : AppColors.blue);
+    final levelColor = m.isOwner ? gold : (dark ? scheme.primary : AppColors.brand);
     final activeColor = dark ? AppColors.darkTertiary : AppColors.green;
     final dangerColor = dark ? scheme.error : AppColors.danger;
     final r = rights;
@@ -321,7 +321,7 @@ class _StaffTile extends StatelessWidget {
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: m.active ? AppColors.yellow : scheme.onSurface.withValues(alpha: 0.10),
+                  backgroundColor: m.active ? AppColors.accent : scheme.onSurface.withValues(alpha: 0.10),
                   child: Icon(
                     m.isOwner ? Icons.workspace_premium_rounded : Icons.admin_panel_settings_rounded,
                     color: m.active ? AppColors.ink : muted,

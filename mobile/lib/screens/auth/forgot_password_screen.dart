@@ -120,7 +120,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Icon(Icons.lock_reset_rounded, size: 56, color: AppColors.blue),
+          Icon(Icons.lock_reset_rounded, size: 56, color: brandColor(context)),
           const SizedBox(height: 12),
           Text(
             'Indiquez le numéro de téléphone de votre compte. Vous recevrez un code pour choisir '
@@ -161,7 +161,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(_bySms ? Icons.sms_rounded : Icons.support_agent_rounded, color: AppColors.blue, size: 28),
+                Icon(_bySms ? Icons.sms_rounded : Icons.support_agent_rounded, color: brandColor(context), size: 28),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(

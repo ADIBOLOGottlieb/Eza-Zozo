@@ -375,7 +375,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   Widget _totals(SalesReport r, bool wide) {
     final cards = <Widget>[
-      _TotalCard(label: 'Commandes', value: r.orders, icon: Icons.receipt_rounded, color: AppColors.blue),
+      _TotalCard(label: 'Commandes', value: r.orders, icon: Icons.receipt_rounded, color: brandColor(context)),
       _TotalCard(
         label: "Chiffre d'affaires",
         value: r.revenue,
@@ -493,7 +493,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     dense: true,
                     leading: CircleAvatar(
                       radius: 16,
-                      backgroundColor: i == 0 ? AppColors.yellow : AppColors.sky,
+                      backgroundColor: i == 0 ? AppColors.accent : AppColors.tint,
                       child: Text(
                         '${i + 1}',
                         style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.ink),
@@ -581,7 +581,7 @@ class _BreakdownCard extends StatelessWidget {
     // Part du CA ; sans CA (ex. tout à 0), part des commandes.
     double share(ReportBucket b) =>
         totalRevenue > 0 ? b.revenue / totalRevenue : (totalOrders > 0 ? b.orders / totalOrders : 0);
-    final bar = dark ? scheme.primary : AppColors.blue;
+    final bar = dark ? scheme.primary : AppColors.brand;
 
     return Card(
       child: Padding(
@@ -695,7 +695,7 @@ class DailyRevenueChart extends StatelessWidget {
                 height: 4 + 110 * v,
                 margin: EdgeInsets.symmetric(horizontal: scroll ? 4 : 6),
                 decoration: BoxDecoration(
-                  color: i == highlight ? AppColors.blue : AppColors.blue.withValues(alpha: 0.35),
+                  color: i == highlight ? AppColors.brand : AppColors.brand.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(6),
                 ),
               ),

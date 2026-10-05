@@ -51,7 +51,7 @@ class _AdminMoreScreenState extends State<AdminMoreScreen> {
     }
 
     Widget tile(IconData icon, String title, Widget page, {String? subtitle, ValueListenable<int>? badge}) => ListTile(
-          leading: Icon(icon, color: AppColors.blue),
+          leading: Icon(icon, color: brandColor(context)),
           title: Text(title),
           subtitle: subtitle == null ? null : Text(subtitle),
           trailing: badge == null
@@ -429,9 +429,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: defined ? scheme.surfaceContainerHighest : AppColors.blue.withValues(alpha: 0.08),
+        color: defined ? scheme.surfaceContainerHighest : AppColors.brand.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: defined ? null : Border.all(color: AppColors.blue.withValues(alpha: 0.35)),
+        border: defined ? null : Border.all(color: AppColors.brand.withValues(alpha: 0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -440,7 +440,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(defined ? Icons.place : Icons.location_off_outlined,
-                  color: defined ? AppColors.green : AppColors.blue),
+                  color: defined ? AppColors.green : brandColor(context)),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -563,9 +563,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: noneActive ? AppColors.blue.withValues(alpha: 0.08) : scheme.surfaceContainerHighest,
+        color: noneActive ? AppColors.brand.withValues(alpha: 0.08) : scheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(14),
-        border: noneActive ? Border.all(color: AppColors.blue.withValues(alpha: 0.35)) : null,
+        border: noneActive ? Border.all(color: AppColors.brand.withValues(alpha: 0.35)) : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -579,7 +579,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.warning_amber_rounded, color: AppColors.blue, size: 20),
+                Icon(Icons.warning_amber_rounded, color: brandColor(context), size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -892,7 +892,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _feesPaidBySection() {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final selectedColor = theme.brightness == Brightness.dark ? scheme.primary : AppColors.blue;
+    final selectedColor = theme.brightness == Brightness.dark ? scheme.primary : AppColors.brand;
 
     Widget option(String value, String title, String subtitle) {
       final selected = _feesPaidBy == value;
@@ -1073,7 +1073,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                           return Card(
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: AppColors.yellow,
+                                backgroundColor: AppColors.accent,
                                 child: Text(
                                   c.user.name.isEmpty ? '?' : c.user.name[0].toUpperCase(),
                                   style: const TextStyle(fontWeight: FontWeight.w900),
@@ -1119,7 +1119,7 @@ class _MerchantCard extends StatelessWidget {
           builder: (context, snap) {
             final header = Row(
               children: [
-                const Icon(Icons.store_mall_directory_rounded, color: AppColors.blue),
+                Icon(Icons.store_mall_directory_rounded, color: brandColor(context)),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text('Compte marchand',

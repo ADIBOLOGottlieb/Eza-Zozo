@@ -28,7 +28,7 @@ class UserAvatar extends StatelessWidget {
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: const BoxDecoration(color: AppColors.blue, shape: BoxShape.circle),
+      decoration: const BoxDecoration(color: AppColors.brand, shape: BoxShape.circle),
       child: Text(
         user.name.trim().isEmpty ? '?' : user.name.trim()[0].toUpperCase(),
         style: TextStyle(color: Colors.white, fontSize: radius * 0.8, fontWeight: FontWeight.w900),
@@ -88,12 +88,12 @@ class _EditableAvatarState extends State<EditableAvatar> {
               child: Text('Photo de profil', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_camera_rounded, color: AppColors.blue),
+              leading: Icon(Icons.photo_camera_rounded, color: brandColor(context)),
               title: const Text('Appareil photo'),
               onTap: () => Navigator.pop(ctx, 'camera'),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library_rounded, color: AppColors.blue),
+              leading: Icon(Icons.photo_library_rounded, color: brandColor(context)),
               title: const Text('Galerie'),
               onTap: () => Navigator.pop(ctx, 'gallery'),
             ),
@@ -209,7 +209,7 @@ class _EditableAvatarState extends State<EditableAvatar> {
                 child: Container(
                   padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(
-                    color: AppColors.blue,
+                    color: brandColor(context),
                     shape: BoxShape.circle,
                     border: Border.all(color: cs.surface, width: 2),
                   ),

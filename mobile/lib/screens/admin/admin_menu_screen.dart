@@ -127,7 +127,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
           floatingActionButton: ListenableBuilder(
             listenable: tab,
             builder: (_, _) => FloatingActionButton.extended(
-              backgroundColor: AppColors.blue,
+              backgroundColor: AppColors.brand,
               foregroundColor: Colors.white,
               onPressed: () => tab.index == 0 ? _openProduct() : _editCategory(),
               icon: const Icon(Icons.add_rounded),
@@ -202,7 +202,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                                         style: const TextStyle(fontWeight: FontWeight.w800),
                                       ),
                                       const SizedBox(height: 2),
-                                      Text(formatPrice(p.price), style: const TextStyle(color: AppColors.blue)),
+                                      Text(formatPrice(p.price), style: TextStyle(color: brandColor(context))),
                                       if (p.isPack) ...[
                                         const SizedBox(height: 4),
                                         PackBadge(savings: p.savings, small: true),
@@ -314,7 +314,7 @@ class _CategoryDialogState extends State<_CategoryDialog> {
                   label: Text(e.value, style: const TextStyle(fontSize: 20)),
                   selected: _icon == e.key,
                   showCheckmark: false,
-                  selectedColor: AppColors.yellow,
+                  selectedColor: AppColors.accent,
                   onSelected: (_) => setState(() => _icon = e.key),
                 ),
             ],

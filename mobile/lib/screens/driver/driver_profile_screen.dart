@@ -76,8 +76,8 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                   children: [
                     CircleAvatar(
                       radius: 30,
-                      backgroundColor: AppColors.blue.withValues(alpha: 0.15),
-                      child: const Icon(Icons.delivery_dining_rounded, size: 34, color: AppColors.blue),
+                      backgroundColor: AppColors.brand.withValues(alpha: 0.15),
+                      child: Icon(Icons.delivery_dining_rounded, size: 34, color: brandColor(context)),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -89,7 +89,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                           Text(formatPhoneDisplay(user?.phone ?? ''),
                               style: TextStyle(fontSize: 16, color: cs.onSurfaceVariant)),
                           const SizedBox(height: 2),
-                          const Text('Livreur', style: TextStyle(color: AppColors.blue, fontWeight: FontWeight.w700)),
+                          Text('Livreur', style: TextStyle(color: brandColor(context), fontWeight: FontWeight.w700)),
                         ],
                       ),
                     ),
@@ -120,7 +120,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                     child: _StatTile(
                       icon: Icons.payments_rounded,
                       color: Theme.of(context).brightness == Brightness.dark
-                          ? AppColors.yellow
+                          ? AppColors.accent
                           : const Color(0xFF9A6A00),
                       value: stats == null ? '…' : formatPrice(stats.todayCash),
                       label: 'Espèces encaissées',

@@ -1,67 +1,73 @@
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
-/// Couleurs Eza Zozo : blanc, bleu, jaune et noir (palette Material 3, clair et sombre).
+/// Couleurs Eza Zozo, tirées du logo (assets/images/logo.png) : bordeaux, ocre, blanc et noir.
 class AppColors {
   // Couleurs de la marque
-  static const blue = Color(0xFF2F6BFF);
-  static const darkBlue = Color(0xFF1A47C7);
-  static const yellow = Color(0xFFFFC21A);
-  static const ink = Color(0xFF0F1115);
-  /// Teinte bleue très claire (puces, encadrés) du thème clair.
-  static const sky = Color(0xFFEAF1FF);
+  /// Bordeaux du logo : fonds de marque (boutons pleins, pastilles) avec texte blanc. Pour une icône ou un
+  /// texte sur la page, préférer [brandColor] (lisible en sombre).
+  static const brand = Color(0xFF831219);
+  static const brandDark = Color(0xFF5E0B10);
+  /// Ocre du logo (texte noir dessus).
+  static const accent = Color(0xFFDDA746);
+  static const ink = Color(0xFF1A1110);
+  /// Teinte ocre très claire (puces, encadrés) du thème clair.
+  static const tint = Color(0xFFFBF1DE);
   /// Gris du thème clair uniquement : dans les widgets, préférer [mutedColor] (lisible en sombre).
-  static const muted = Color(0xFF6B7280);
+  static const muted = Color(0xFF6F6461);
   static const green = Color(0xFF2E9E5B);
   /// Actions destructrices et erreurs (supprimer, déconnexion, refus).
-  static const danger = Color(0xFFD32F2F);
+  static const danger = Color(0xFFC62828);
 
   // Material 3 semantic colors for light theme
-  static const lightPrimary = blue;
+  static const lightPrimary = brand;
   static const lightOnPrimary = Colors.white;
-  static const lightPrimaryContainer = Color(0xFFDCE6FF);
-  static const lightOnPrimaryContainer = Color(0xFF001A56);
+  static const lightPrimaryContainer = Color(0xFFFFDAD7);
+  static const lightOnPrimaryContainer = Color(0xFF410005);
 
-  static const lightSecondary = yellow;
+  static const lightSecondary = accent;
   static const lightOnSecondary = ink;
-  static const lightSecondaryContainer = Color(0xFFFFF1C2);
-  static const lightOnSecondaryContainer = Color(0xFF3A2C00);
+  static const lightSecondaryContainer = Color(0xFFFCE9C6);
+  static const lightOnSecondaryContainer = Color(0xFF3A2800);
 
   static const lightTertiary = green;
   static const lightOnTertiary = Colors.white;
   static const lightTertiaryContainer = Color(0xFFA5F8D4);
   static const lightOnTertiaryContainer = Color(0xFF002015);
 
-  static const lightBackground = Color(0xFFF7F9FC);
+  static const lightBackground = Color(0xFFFAF7F4);
   static const lightSurface = Colors.white;
-  static const lightSurfaceVariant = Color(0xFFE7ECF4);
+  static const lightSurfaceVariant = Color(0xFFF1E9E4);
   static const lightOnSurface = ink;
   static const lightOnSurfaceVariant = muted;
-  static const lightOutline = Color(0xFF9AA3B2);
+  static const lightOutline = Color(0xFFA1928D);
 
   // Material 3 semantic colors for dark theme
-  static const darkPrimary = Color(0xFF8FB0FF);
-  static const darkOnPrimary = Color(0xFF002A7A);
-  static const darkPrimaryContainer = darkBlue;
-  static const darkOnPrimaryContainer = Color(0xFFDCE6FF);
+  static const darkPrimary = Color(0xFFFFB3AC);
+  static const darkOnPrimary = Color(0xFF5F0A10);
+  static const darkPrimaryContainer = brand;
+  static const darkOnPrimaryContainer = Color(0xFFFFDAD7);
 
-  static const darkSecondary = yellow;
-  static const darkOnSecondary = Color(0xFF2B2100);
-  static const darkSecondaryContainer = Color(0xFF5C4600);
-  static const darkOnSecondaryContainer = Color(0xFFFFF1C2);
+  static const darkSecondary = Color(0xFFE9B85C);
+  static const darkOnSecondary = Color(0xFF3F2C00);
+  static const darkSecondaryContainer = Color(0xFF5C4300);
+  static const darkOnSecondaryContainer = Color(0xFFFCE9C6);
 
   static const darkTertiary = Color(0xFF8ADBB1);
   static const darkOnTertiary = Color(0xFF003829);
   static const darkTertiaryContainer = Color(0xFF00523D);
   static const darkOnTertiaryContainer = Color(0xFFA5F8D4);
 
-  static const darkBackground = Color(0xFF0B0D12);
-  static const darkSurface = Color(0xFF151922);
-  static const darkSurfaceVariant = Color(0xFF2A303C);
-  static const darkOnSurface = Color(0xFFEDF1F7);
-  static const darkOnSurfaceVariant = Color(0xFFA9B2C1);
-  static const darkOutline = Color(0xFF6E7787);
+  static const darkBackground = Color(0xFF120C0B);
+  static const darkSurface = Color(0xFF1E1615);
+  static const darkSurfaceVariant = Color(0xFF3A2E2C);
+  static const darkOnSurface = Color(0xFFF3EAE8);
+  static const darkOnSurfaceVariant = Color(0xFFC2B3AF);
+  static const darkOutline = Color(0xFF8C7C78);
 }
+
+/// Couleur de marque pour une icône, un texte ou une bordure : bordeaux en clair, rouge clair en sombre.
+Color brandColor(BuildContext context) => Theme.of(context).colorScheme.primary;
 
 /// Texte secondaire (gris) adapté au thème courant, clair ou sombre.
 Color mutedColor(BuildContext context) => Theme.of(context).colorScheme.onSurfaceVariant;
@@ -90,17 +96,17 @@ ThemeData buildLightTheme() {
     onSurface: AppColors.lightOnSurface,
     // Paliers de surface (champs, encadrés, boutons désactivés), distincts des cartes.
     surfaceContainerLowest: Colors.white,
-    surfaceContainerLow: Color(0xFFF9FBFE),
-    surfaceContainer: Color(0xFFF3F6FB),
-    surfaceContainerHigh: Color(0xFFEEF2F8),
+    surfaceContainerLow: Color(0xFFFDFAF8),
+    surfaceContainer: Color(0xFFF8F2EE),
+    surfaceContainerHigh: Color(0xFFF4EDE8),
     surfaceContainerHighest: AppColors.lightSurfaceVariant,
     onSurfaceVariant: AppColors.lightOnSurfaceVariant,
     outline: AppColors.lightOutline,
-    outlineVariant: Color(0xFFD5DCE6),
+    outlineVariant: Color(0xFFE4D8D2),
     scrim: Colors.black,
-    inverseSurface: Color(0xFF1B1F27),
-    onInverseSurface: Color(0xFFF1F4F9),
-    inversePrimary: Color(0xFF9DBBFF),
+    inverseSurface: Color(0xFF2E2321),
+    onInverseSurface: Color(0xFFF8EEEC),
+    inversePrimary: Color(0xFFFFB3AC),
     surfaceTint: AppColors.lightPrimary,
   );
 
@@ -256,18 +262,18 @@ ThemeData buildDarkTheme() {
     onErrorContainer: Color(0xFFFFDAD6),
     surface: AppColors.darkSurface,
     onSurface: AppColors.darkOnSurface,
-    surfaceContainerLowest: Color(0xFF080A0E),
-    surfaceContainerLow: Color(0xFF12161E),
-    surfaceContainer: Color(0xFF1A1F29),
-    surfaceContainerHigh: Color(0xFF222834),
+    surfaceContainerLowest: Color(0xFF0D0807),
+    surfaceContainerLow: Color(0xFF1A1312),
+    surfaceContainer: Color(0xFF241B1A),
+    surfaceContainerHigh: Color(0xFF2F2523),
     surfaceContainerHighest: AppColors.darkSurfaceVariant,
     onSurfaceVariant: AppColors.darkOnSurfaceVariant,
     outline: AppColors.darkOutline,
-    outlineVariant: Color(0xFF353C49),
+    outlineVariant: Color(0xFF453835),
     scrim: Colors.black,
-    inverseSurface: Color(0xFFEDF1F7),
-    onInverseSurface: Color(0xFF1B1F27),
-    inversePrimary: AppColors.blue,
+    inverseSurface: Color(0xFFF3EAE8),
+    onInverseSurface: Color(0xFF2E2321),
+    inversePrimary: AppColors.brand,
     surfaceTint: AppColors.darkPrimary,
   );
 

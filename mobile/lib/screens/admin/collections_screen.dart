@@ -248,7 +248,7 @@ class _CollectionsScreenState extends State<CollectionsScreen> {
                 label: Text(o.value),
                 selected: value == o.key,
                 showCheckmark: false,
-                selectedColor: AppColors.blue,
+                selectedColor: AppColors.brand,
                 backgroundColor: cs.surface,
                 labelStyle: TextStyle(
                   color: value == o.key ? Colors.white : cs.onSurface,
@@ -513,7 +513,7 @@ class _TotalsGrid extends StatelessWidget {
         label: 'Net à recevoir',
         value: totals.toReceive,
         icon: Icons.hourglass_bottom_rounded,
-        color: AppColors.blue,
+        color: brandColor(context),
       ),
       _TotalTile(
         label: 'Déjà reversé',

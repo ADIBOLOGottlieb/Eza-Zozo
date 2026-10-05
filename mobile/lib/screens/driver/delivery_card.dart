@@ -135,7 +135,7 @@ class _DeliveryCardState extends State<DeliveryCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(o.hasLocation ? Icons.location_on_rounded : Icons.location_off_outlined,
-                      size: 22, color: o.hasLocation ? AppColors.blue : cs.onSurfaceVariant),
+                      size: 22, color: o.hasLocation ? brandColor(context) : cs.onSurfaceVariant),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
@@ -195,7 +195,7 @@ class _DeliveryCardState extends State<DeliveryCard> {
                   busy: _busy,
                   icon: Icons.delivery_dining_rounded,
                   label: 'Je prends cette livraison',
-                  color: AppColors.blue,
+                  color: brandColor(context),
                   onPressed: _take,
                 ),
               ] else if (canMarkDelivered(o, me)) ...[
@@ -299,7 +299,7 @@ class PaymentBanner extends StatelessWidget {
       title = 'Déjà payé ✅';
       subtitle = '${formatPrice(o.total)} • ${paymentLabel(o.paymentMethod)} • rien à encaisser';
     } else if (isCashOrder(o)) {
-      color = dark ? AppColors.yellow : const Color(0xFF9A6A00);
+      color = dark ? AppColors.accent : const Color(0xFF9A6A00);
       icon = Icons.payments_rounded;
       title = 'À encaisser : ${formatPrice(o.total)}';
       subtitle = 'Espèces à la livraison';

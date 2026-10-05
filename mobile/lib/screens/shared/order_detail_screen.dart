@@ -400,17 +400,17 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     child: Column(
                       children: [
                         ListTile(
-                          leading: Icon(orderModeIcon(o), color: AppColors.blue),
+                          leading: Icon(orderModeIcon(o), color: brandColor(context)),
                           title: Text(orderModeLabel(o)),
                           subtitle: o.isDelivery && o.address != null ? Text(o.address!) : null,
                         ),
                         ListTile(
-                          leading: Icon(paymentIcon(o.paymentMethod), color: AppColors.blue),
+                          leading: Icon(paymentIcon(o.paymentMethod), color: brandColor(context)),
                           title: Text(paymentLabel(o.paymentMethod)),
                         ),
                         if (o.note != null)
                           ListTile(
-                            leading: const Icon(Icons.sticky_note_2_rounded, color: AppColors.blue),
+                            leading: Icon(Icons.sticky_note_2_rounded, color: brandColor(context)),
                             title: Text(o.note!),
                           ),
                       ],
@@ -629,9 +629,9 @@ class _Timeline extends StatelessWidget {
                         height: 28,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: i <= current ? AppColors.blue : idle,
+                          color: i <= current ? brandColor(context) : idle,
                           boxShadow: i == current
-                              ? [BoxShadow(color: AppColors.blue.withValues(alpha: 0.4), blurRadius: 10)]
+                              ? [BoxShadow(color: AppColors.brand.withValues(alpha: 0.4), blurRadius: 10)]
                               : null,
                         ),
                         child: Icon(
@@ -653,7 +653,7 @@ class _Timeline extends StatelessWidget {
                             curve: Curves.easeOut,
                             width: 3,
                             height: i < current ? 22 : 0,
-                            color: AppColors.blue,
+                            color: brandColor(context),
                           ),
                         ),
                     ],
@@ -695,7 +695,7 @@ class _CustomerCard extends StatelessWidget {
     return Card(
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: AppColors.yellow,
+          backgroundColor: AppColors.accent,
           child: Icon(order.isCounter ? Icons.point_of_sale_rounded : Icons.person_rounded, color: AppColors.ink),
         ),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -715,7 +715,7 @@ class _CustomerCard extends StatelessWidget {
             if (order.hasLocation && !order.isCounter) ...[
               IconButton.filled(
                 tooltip: 'Itinéraire',
-                style: IconButton.styleFrom(backgroundColor: AppColors.blue),
+                style: IconButton.styleFrom(backgroundColor: AppColors.brand),
                 icon: const Icon(Icons.directions_rounded),
                 onPressed: () => launchUrl(
                   Uri.parse(
@@ -762,11 +762,11 @@ class _ItemsCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppColors.blue.withValues(alpha: 0.1),
+                        color: AppColors.brand.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text('${i.quantity}×',
-                          style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.blue)),
+                          style: TextStyle(fontWeight: FontWeight.w800, color: brandColor(context))),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -947,7 +947,7 @@ class _LiveTrackingBanner extends StatelessWidget {
 
     final eta = order.etaMinutes;
     final ago = DateTime.now().difference(loc.updatedAt).inMinutes;
-    final accent = dark ? scheme.primary : AppColors.blue;
+    final accent = dark ? scheme.primary : AppColors.brand;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -960,7 +960,7 @@ class _LiveTrackingBanner extends StatelessWidget {
         children: [
           const CircleAvatar(
             radius: 18,
-            backgroundColor: AppColors.blue,
+            backgroundColor: AppColors.brand,
             child: Icon(Icons.delivery_dining_rounded, color: Colors.white, size: 22),
           ),
           const SizedBox(width: 12),
@@ -1107,7 +1107,7 @@ class _DriverCard extends StatelessWidget {
     return Card(
       child: ListTile(
         leading: const CircleAvatar(
-          backgroundColor: AppColors.yellow,
+          backgroundColor: AppColors.accent,
           child: Text('🛵', style: TextStyle(fontSize: 20)),
         ),
         title: Text('Votre livreur', style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
@@ -1176,7 +1176,7 @@ class _AdminDriverSection extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.delivery_dining_rounded, color: AppColors.blue),
+                Icon(Icons.delivery_dining_rounded, color: brandColor(context)),
                 const SizedBox(width: 10),
                 Text('Livreur', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: scheme.onSurface)),
                 const Spacer(),
@@ -1300,7 +1300,7 @@ class _DriverPickerState extends State<_DriverPicker> {
                       return ListTile(
                         enabled: !current,
                         leading: CircleAvatar(
-                          backgroundColor: AppColors.yellow,
+                          backgroundColor: AppColors.accent,
                           child: Text(
                             d.name.isEmpty ? '?' : d.name[0].toUpperCase(),
                             style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.black87),

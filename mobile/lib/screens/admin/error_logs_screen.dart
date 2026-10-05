@@ -77,7 +77,7 @@ class _ErrorLogsScreenState extends State<ErrorLogsScreen> {
                       label: Text(f.value),
                       selected: _source == f.key,
                       showCheckmark: false,
-                      selectedColor: AppColors.blue,
+                      selectedColor: AppColors.brand,
                       backgroundColor: scheme.surface,
                       labelStyle: TextStyle(
                         color: _source == f.key ? Colors.white : scheme.onSurface,
@@ -142,7 +142,7 @@ class _ErrorTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final server = entry.source == 'server';
-    final color = server ? (dark ? Colors.indigo.shade200 : Colors.indigo.shade600) : (dark ? scheme.primary : AppColors.blue);
+    final color = server ? (dark ? Colors.indigo.shade200 : Colors.indigo.shade600) : (dark ? scheme.primary : AppColors.brand);
     final details = [
       timeAgo(entry.createdAt),
       if ((entry.context ?? '').isNotEmpty) entry.context!,

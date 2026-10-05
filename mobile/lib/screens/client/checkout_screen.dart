@@ -384,7 +384,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               Text(
                 'Total : ${formatPrice(order.total)}',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: AppColors.blue),
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: brandColor(context)),
               ),
             ],
           ),
@@ -532,7 +532,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               selected: {_mode},
               onSelectionChanged: (s) => setState(() => _mode = s.first),
               style: SegmentedButton.styleFrom(
-                selectedBackgroundColor: AppColors.blue,
+                selectedBackgroundColor: AppColors.brand,
                 selectedForegroundColor: Colors.white,
                 backgroundColor: Theme.of(context).colorScheme.surface,
               ),
@@ -592,7 +592,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     padding: const EdgeInsets.all(12),
                     child: Row(
                       children: [
-                        Icon(Icons.map_rounded, color: _location != null ? Colors.green : AppColors.blue),
+                        Icon(Icons.map_rounded, color: _location != null ? Colors.green : brandColor(context)),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -609,7 +609,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             ),
                           ),
                         ),
-                        Icon(Icons.arrow_forward_rounded, color: _location != null ? Colors.green : AppColors.blue, size: 18),
+                        Icon(Icons.arrow_forward_rounded, color: _location != null ? Colors.green : brandColor(context), size: 18),
                       ],
                     ),
                   ),
@@ -649,7 +649,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ] else if (_settings != null) ...[
               Card(
                 child: ListTile(
-                  leading: const Icon(Icons.storefront_rounded, color: AppColors.blue),
+                  leading: Icon(Icons.storefront_rounded, color: brandColor(context)),
                   title: const Text('À récupérer au restaurant'),
                   subtitle: Text(_settings!.restaurantAddress),
                 ),
@@ -686,7 +686,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         subtitle: isMobileMoney(e.key) && _settings != null && _settings!.clientFeePercentFor(e.key) > 0
                             ? Text('Frais ${formatPercent(_settings!.clientFeePercentFor(e.key))} %')
                             : null,
-                        secondary: Icon(paymentIcon(e.key), color: AppColors.blue),
+                        secondary: Icon(paymentIcon(e.key), color: brandColor(context)),
                       ),
                   ],
                 ),
@@ -821,7 +821,7 @@ class _TotalRow extends StatelessWidget {
     final style = TextStyle(
       fontWeight: bold ? FontWeight.w900 : FontWeight.w500,
       fontSize: bold ? 17 : 14,
-      color: bold ? AppColors.blue : Theme.of(context).colorScheme.onSurface,
+      color: bold ? brandColor(context) : Theme.of(context).colorScheme.onSurface,
     );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),

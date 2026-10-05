@@ -111,7 +111,7 @@ class _SavedAddressPickerSheetState extends State<_SavedAddressPickerSheet> {
                     itemBuilder: (_, i) {
                       final a = list[i];
                       return ListTile(
-                        leading: Icon(_labelIcon(a.label), color: AppColors.blue),
+                        leading: Icon(_labelIcon(a.label), color: brandColor(context)),
                         title: Text(a.label, style: const TextStyle(fontWeight: FontWeight.w700)),
                         subtitle: Text(a.address, maxLines: 2, overflow: TextOverflow.ellipsis),
                         trailing: a.hasLocation
@@ -129,7 +129,7 @@ class _SavedAddressPickerSheetState extends State<_SavedAddressPickerSheet> {
             ),
             const Divider(height: 1),
             ListTile(
-              leading: const Icon(Icons.edit_location_alt_rounded, color: AppColors.blue),
+              leading: Icon(Icons.edit_location_alt_rounded, color: brandColor(context)),
               title: const Text('Gérer mes adresses'),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: _manage,
@@ -232,8 +232,8 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
                   child: ListTile(
                     contentPadding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
                     leading: CircleAvatar(
-                      backgroundColor: AppColors.blue.withValues(alpha: 0.12),
-                      child: Icon(_labelIcon(a.label), color: AppColors.blue),
+                      backgroundColor: AppColors.brand.withValues(alpha: 0.12),
+                      child: Icon(_labelIcon(a.label), color: brandColor(context)),
                     ),
                     title: Text(a.label, style: const TextStyle(fontWeight: FontWeight.w800)),
                     subtitle: Column(

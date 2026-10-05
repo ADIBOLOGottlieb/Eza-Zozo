@@ -80,7 +80,7 @@ class DriverTrackingBanner extends StatelessWidget {
             const SizedBox(width: 6),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.blue,
+                backgroundColor: AppColors.brand,
                 foregroundColor: Colors.white,
                 minimumSize: const Size(0, 38),
                 padding: const EdgeInsets.symmetric(horizontal: 14),

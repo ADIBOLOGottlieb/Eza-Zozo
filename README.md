@@ -9,7 +9,7 @@ Application mobile (Android / iOS) de commande pour le restaurant **Eza Zozo** (
 
 Pas de compte « cuisine » : un ancien compte cuisine est désactivé au démarrage du serveur (le propriétaire peut le supprimer ou le réactiver comme gérant).
 
-**Design** : blanc, bleu (#2F6BFF), jaune (#FFC21A) et noir, avec un **mode sombre** (clair / sombre / système) pour tous les comptes. Le logo « Eza Zozo » est dessiné dans l'app (`AppLogo`, `mobile/lib/widgets/common.dart`) ; les icônes viennent de `mobile/assets/images/logo.png` et `logo_foreground.png` (`dart run flutter_launcher_icons` après modification).
+**Design** : couleurs du logo du restaurant, bordeaux (#831219), ocre (#DDA746), blanc et noir, avec un **mode sombre** (clair / sombre / système) pour tous les comptes. Le logo vient de `mobile/assets/images/logo_source.png` ; `mobile/tool/make_logo.ps1` en tire le logo de l'app (`logo_full.png`, affiché par `AppLogo`), les icônes (`logo.png`, `logo_foreground.png`) et le logo des pages web, puis `dart run flutter_launcher_icons`.
 
 ```
 backend/   API Node.js (Express + SQLite intégré à Node) — déployée sur Render

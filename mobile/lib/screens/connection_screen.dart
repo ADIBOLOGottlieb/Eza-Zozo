@@ -74,9 +74,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                   height: 96,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppColors.blue.withValues(alpha: 0.12),
+                    color: AppColors.brand.withValues(alpha: 0.12),
                   ),
-                  child: const Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.blue),
+                  child: Icon(Icons.cloud_off_rounded, size: 48, color: brandColor(context)),
                 ),
                 const SizedBox(height: 24),
                 Text(

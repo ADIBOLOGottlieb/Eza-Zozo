@@ -321,7 +321,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [AppColors.blue, AppColors.darkBlue],
+            colors: [AppColors.brand, AppColors.brandDark],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -442,7 +442,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                     controller: controller,
                     onChanged: onChanged,
                     textInputAction: TextInputAction.search,
-                    cursorColor: AppColors.blue,
+                    cursorColor: brandColor(context),
                     style: TextStyle(color: scheme.onSurface, fontSize: 15),
                     decoration: InputDecoration(
                       hintText: 'Rechercher un plat...',
@@ -453,7 +453,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                       enabledBorder: InputBorder.none,
                       focusedBorder: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                      prefixIcon: const Icon(Icons.search_rounded, color: AppColors.blue),
+                      prefixIcon: Icon(Icons.search_rounded, color: brandColor(context)),
                       suffixIcon: query.isEmpty
                           ? null
                           : IconButton(
@@ -480,7 +480,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                   onPressed: () => ClientShell.of(context)?.goTo(ClientShellState.cartTab),
                   icon: Badge(
                     isLabelVisible: cartCount > 0,
-                    backgroundColor: AppColors.yellow,
+                    backgroundColor: AppColors.accent,
                     textColor: AppColors.ink,
                     label: Text('$cartCount'),
                     child: BounceOnChange(
@@ -588,11 +588,11 @@ class _CategoryPill extends StatelessWidget {
           curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: selected ? AppColors.blue : Theme.of(context).colorScheme.surface,
+            color: selected ? brandColor(context) : Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(30),
             boxShadow: [
               BoxShadow(
-                color: selected ? AppColors.blue.withValues(alpha: 0.35) : Colors.black.withValues(alpha: 0.05),
+                color: selected ? AppColors.brand.withValues(alpha: 0.35) : Colors.black.withValues(alpha: 0.05),
                 blurRadius: selected ? 12 : 6,
                 offset: const Offset(0, 4),
               ),
@@ -770,7 +770,7 @@ class _AddButton extends StatelessWidget {
       child: qty == 0
           ? Material(
               key: const ValueKey('plus'),
-              color: AppColors.blue,
+              color: brandColor(context),
               shape: const CircleBorder(),
               elevation: small ? 3 : 0,
               child: InkWell(

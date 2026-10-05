@@ -103,7 +103,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.edit_rounded, color: AppColors.blue),
+                    leading: Icon(Icons.edit_rounded, color: brandColor(context)),
                     title: const Text('Modifier mes informations'),
                     subtitle: Text(
                       (user.momoPhone ?? '').isNotEmpty ? 'Mobile money : ${user.momoPhone}' : 'Nom, e-mail, mobile money',
@@ -112,14 +112,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onTap: () => _open(EditProfileScreen(user: user)),
                   ),
                   ListTile(
-                    leading: const Icon(Icons.location_on_rounded, color: AppColors.blue),
+                    leading: Icon(Icons.location_on_rounded, color: brandColor(context)),
                     title: const Text('Mes adresses'),
                     subtitle: const Text('Maison, bureau...'),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => _open(const SavedAddressesScreen()),
                   ),
                   ListTile(
-                    leading: const Icon(Icons.lock_reset_rounded, color: AppColors.blue),
+                    leading: Icon(Icons.lock_reset_rounded, color: brandColor(context)),
                     title: const Text('Changer mon mot de passe'),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => _open(const ChangePasswordScreen()),
@@ -135,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   const _RestaurantContact(),
                   ListTile(
-                    leading: const Icon(Icons.help_outline_rounded, color: AppColors.blue),
+                    leading: Icon(Icons.help_outline_rounded, color: brandColor(context)),
                     title: const Text('Questions fréquentes'),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => _open(const FaqScreen()),
@@ -148,7 +148,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.description_rounded, color: AppColors.blue),
+                    leading: Icon(Icons.description_rounded, color: brandColor(context)),
                     title: Text(legalTitle(LegalDoc.terms)),
                     subtitle: user.termsAcceptedAt == null
                         ? null
@@ -157,7 +157,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onTap: () => openLegalDoc(context, LegalDoc.terms),
                   ),
                   ListTile(
-                    leading: const Icon(Icons.privacy_tip_rounded, color: AppColors.blue),
+                    leading: Icon(Icons.privacy_tip_rounded, color: brandColor(context)),
                     title: Text(legalTitle(LegalDoc.privacy)),
                     trailing: const Icon(Icons.open_in_new_rounded, size: 20),
                     onTap: () => openLegalDoc(context, LegalDoc.privacy),
@@ -254,7 +254,7 @@ class _StatsCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(icon, color: AppColors.blue, size: 22),
+                    Icon(icon, color: brandColor(context), size: 22),
                     const SizedBox(height: 8),
                     loading
                         ? const SizedBox(
@@ -358,7 +358,7 @@ class _RestaurantContactState extends State<_RestaurantContact> {
         return Column(
           children: [
             ListTile(
-              leading: const Icon(Icons.call_rounded, color: AppColors.blue),
+              leading: Icon(Icons.call_rounded, color: brandColor(context)),
               title: const Text('Appeler le restaurant'),
               subtitle: Text(s.restaurantAddress.isEmpty ? phone : '$phone\n${s.restaurantAddress}'),
               isThreeLine: s.restaurantAddress.isNotEmpty,

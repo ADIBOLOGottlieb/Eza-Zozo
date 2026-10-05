@@ -89,7 +89,7 @@ class LegalScreen extends StatelessWidget {
           const SizedBox(height: 8),
           for (final (title, body) in sections) ...[
             const SizedBox(height: 16),
-            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.blue)),
+            Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: brandColor(context))),
             const SizedBox(height: 6),
             Text(body, style: TextStyle(color: cs.onSurface, height: 1.45)),
           ],

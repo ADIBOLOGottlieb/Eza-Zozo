@@ -106,7 +106,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                               height: 8,
                               margin: const EdgeInsets.symmetric(horizontal: 4),
                               decoration: BoxDecoration(
-                                color: _currentPage == i ? AppColors.blue : AppColors.muted.withValues(alpha: 0.3),
+                                color: _currentPage == i ? AppColors.brand : AppColors.muted.withValues(alpha: 0.3),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                             ),

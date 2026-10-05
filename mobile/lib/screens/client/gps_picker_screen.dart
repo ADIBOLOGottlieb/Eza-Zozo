@@ -788,7 +788,7 @@ class _GpsPickerScreenState extends State<GpsPickerScreen> with SingleTickerProv
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.location_off_rounded, color: AppColors.blue),
+        icon: Icon(Icons.location_off_rounded, color: brandColor(context)),
         title: const Text('Activer la localisation'),
         content: const Text(
           'La localisation (GPS) de votre téléphone est désactivée. '
@@ -811,7 +811,7 @@ class _GpsPickerScreenState extends State<GpsPickerScreen> with SingleTickerProv
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.location_disabled_rounded, color: AppColors.blue),
+        icon: Icon(Icons.location_disabled_rounded, color: brandColor(context)),
         title: const Text('Localisation refusée'),
         content: const Text(
           'Eza Zozo n\'a pas l\'autorisation d\'utiliser votre position. '
@@ -945,7 +945,7 @@ class _GpsPickerScreenState extends State<GpsPickerScreen> with SingleTickerProv
                           duration: const Duration(milliseconds: 150),
                           curve: Curves.easeOut,
                           offset: Offset(0, _moving ? -0.72 : -0.5),
-                          child: const Icon(Icons.location_on_rounded, size: 52, color: AppColors.blue),
+                          child: Icon(Icons.location_on_rounded, size: 52, color: brandColor(context)),
                         ),
                       ],
                     ),
@@ -989,7 +989,7 @@ class _GpsPickerScreenState extends State<GpsPickerScreen> with SingleTickerProv
                           onPressed: _resetNorth,
                           child: Transform.rotate(
                             angle: -_rotation * math.pi / 180,
-                            child: const Icon(Icons.navigation_rounded, color: AppColors.blue),
+                            child: Icon(Icons.navigation_rounded, color: brandColor(context)),
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -1014,8 +1014,8 @@ class _GpsPickerScreenState extends State<GpsPickerScreen> with SingleTickerProv
                   child: FloatingActionButton(
                     heroTag: 'locate',
                     onPressed: _locating ? null : _locate,
-                    backgroundColor: _following ? AppColors.blue : scheme.surface,
-                    foregroundColor: _following ? Colors.white : AppColors.blue,
+                    backgroundColor: _following ? AppColors.brand : scheme.surface,
+                    foregroundColor: _following ? Colors.white : brandColor(context),
                     tooltip: _following ? 'Suivi de ma position activé' : 'Ma position',
                     child: _locating
                         ? SizedBox(
@@ -1023,7 +1023,7 @@ class _GpsPickerScreenState extends State<GpsPickerScreen> with SingleTickerProv
                             height: 22,
                             child: CircularProgressIndicator(
                               strokeWidth: 2.5,
-                              color: _following ? Colors.white : AppColors.blue,
+                              color: _following ? Colors.white : brandColor(context),
                             ),
                           )
                         : Icon(_following ? Icons.my_location_rounded : Icons.location_searching_rounded),
@@ -1065,7 +1065,7 @@ class _GpsPickerScreenState extends State<GpsPickerScreen> with SingleTickerProv
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
-              prefixIcon: const Icon(Icons.search_rounded, color: AppColors.blue),
+              prefixIcon: Icon(Icons.search_rounded, color: brandColor(context)),
               suffixIcon: _searching
                   ? const Padding(
                       padding: EdgeInsets.all(14),
@@ -1156,7 +1156,7 @@ class _GpsPickerScreenState extends State<GpsPickerScreen> with SingleTickerProv
         opacity: route != null && stale ? 0.5 : 1,
         child: Row(
           children: [
-            Icon(Icons.route_rounded, size: 16, color: route != null ? AppColors.blue : scheme.onSurfaceVariant),
+            Icon(Icons.route_rounded, size: 16, color: route != null ? brandColor(context) : scheme.onSurfaceVariant),
             const SizedBox(width: 6),
             Expanded(child: content),
             if (_routing)
@@ -1226,7 +1226,7 @@ class _GpsPickerScreenState extends State<GpsPickerScreen> with SingleTickerProv
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.place_rounded, color: AppColors.blue),
+                  Icon(Icons.place_rounded, color: brandColor(context)),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(

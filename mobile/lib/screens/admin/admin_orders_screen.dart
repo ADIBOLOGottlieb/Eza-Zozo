@@ -196,7 +196,7 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
                       label: Text(f.value),
                       selected: _filter == f.key,
                       showCheckmark: false,
-                      selectedColor: AppColors.blue,
+                      selectedColor: AppColors.brand,
                       backgroundColor: scheme.surface,
                       labelStyle: TextStyle(
                         color: _filter == f.key ? Colors.white : scheme.onSurface,

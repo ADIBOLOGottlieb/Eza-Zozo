@@ -74,7 +74,7 @@ class _PaymentsReviewScreenState extends State<PaymentsReviewScreen> {
             const Flexible(child: Text('Paiements à vérifier', overflow: TextOverflow.ellipsis)),
             if (items != null && items.isNotEmpty) ...[
               const SizedBox(width: 8),
-              Badge(label: Text('${items.length}'), backgroundColor: AppColors.blue),
+              Badge(label: Text('${items.length}'), backgroundColor: AppColors.brand),
             ],
           ],
         ),

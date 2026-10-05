@@ -16,7 +16,7 @@ Polyline routePolyline(List<LatLng> points, {bool fallback = false}) {
     return Polyline(
       points: points,
       strokeWidth: 3.5,
-      color: AppColors.blue.withValues(alpha: 0.75),
+      color: AppColors.brand.withValues(alpha: 0.75),
       borderStrokeWidth: 1.5,
       borderColor: Colors.white.withValues(alpha: 0.85),
       pattern: StrokePattern.dashed(segments: const [10, 8]),
@@ -25,7 +25,7 @@ Polyline routePolyline(List<LatLng> points, {bool fallback = false}) {
   return Polyline(
     points: points,
     strokeWidth: 5,
-    color: AppColors.blue,
+    color: AppColors.brand,
     borderStrokeWidth: 2.5,
     borderColor: Colors.white.withValues(alpha: 0.9),
   );
@@ -63,7 +63,7 @@ class DriverPin extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = stale ? const Color(0xFF8A7C77) : AppColors.blue;
+    final color = stale ? const Color(0xFF8A7C77) : AppColors.brand;
     return Semantics(
       label: 'Position du livreur',
       child: Stack(
@@ -120,10 +120,10 @@ class RestaurantPin extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         shape: BoxShape.circle,
-        border: Border.all(color: AppColors.blue, width: 2.5),
+        border: Border.all(color: AppColors.brand, width: 2.5),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 4)],
       ),
-      child: const Center(child: Icon(Icons.storefront_rounded, size: 20, color: AppColors.blue)),
+      child: const Center(child: Icon(Icons.storefront_rounded, size: 20, color: AppColors.brand)),
     );
   }
 }
@@ -497,7 +497,7 @@ class _RouteMapState extends State<RouteMap> with SingleTickerProviderStateMixin
                     child: Center(
                       child: FilledButton.icon(
                         style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.blue,
+                          backgroundColor: AppColors.brand,
                           foregroundColor: Colors.white,
                           minimumSize: const Size(0, 36),
                           padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -519,7 +519,7 @@ class _RouteMapState extends State<RouteMap> with SingleTickerProviderStateMixin
             Icon(
               failed ? Icons.route_outlined : Icons.route_rounded,
               size: 20,
-              color: failed ? scheme.onSurfaceVariant : AppColors.blue,
+              color: failed ? scheme.onSurfaceVariant : AppColors.brand,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -576,7 +576,7 @@ class _LegendRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: AppColors.blue),
+          Icon(icon, size: 16, color: AppColors.brand),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

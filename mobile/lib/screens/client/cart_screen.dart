@@ -160,8 +160,8 @@ class _CartScreenState extends State<CartScreen> {
                                   AnimatedCount(
                                     value: line.total,
                                     format: formatPrice,
-                                    style: const TextStyle(
-                                        fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.blue),
+                                    style: TextStyle(
+                                        fontSize: 15, fontWeight: FontWeight.w800, color: brandColor(context)),
                                   ),
                                 ],
                               ),
@@ -261,7 +261,7 @@ class _Summary extends StatelessWidget {
       final flooz = s.clientFeePercentFor('flooz');
       final mixx = s.clientFeePercentFor('mixx');
       final totalStyle = TextStyle(fontWeight: FontWeight.w700, color: scheme.onSurface, fontSize: 13.5);
-      final totalValue = const TextStyle(fontWeight: FontWeight.w800, color: AppColors.blue);
+      final totalValue = TextStyle(fontWeight: FontWeight.w800, color: brandColor(context));
       Widget total(String label, String method) => row(
             label,
             Text(formatPrice(base + paymentFeeFor(base, method, s.clientFeePercentFor(method))), style: totalValue),

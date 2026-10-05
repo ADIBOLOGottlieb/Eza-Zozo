@@ -190,7 +190,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return [
       if (s.pending > 0)
         Card(
-          color: AppColors.yellow,
+          color: AppColors.accent,
           child: ListTile(
             leading: const Icon(Icons.notifications_active_rounded, color: AppColors.ink),
             title: Text(
@@ -250,7 +250,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         label: 'Commandes du jour',
         value: s.todayOrders,
         icon: Icons.receipt_rounded,
-        color: AppColors.blue,
+        color: brandColor(context),
         footer: _ChangePill(percent: s.ordersChangePercent, weekday: day),
       ),
       _StatCard(
@@ -284,7 +284,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _deliveredTotal(AdminStats s) => Card(
         child: ListTile(
-          leading: const Icon(Icons.emoji_events_rounded, color: AppColors.yellow, size: 32),
+          leading: const Icon(Icons.emoji_events_rounded, color: AppColors.accent, size: 32),
           title: AnimatedCount(
             value: s.deliveredRevenue,
             format: formatPrice,
@@ -306,7 +306,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   for (var i = 0; i < s.topProducts.length; i++)
                     ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: i == 0 ? AppColors.yellow : AppColors.sky,
+                        backgroundColor: i == 0 ? AppColors.accent : AppColors.tint,
                         child: Text('${i + 1}',
                             style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.ink)),
                       ),
@@ -445,7 +445,7 @@ class _PeakCard extends StatelessWidget {
       peakOrders += hourly[h];
     }
     bool inPeak(int h) => hasPeak && h >= start && h < end;
-    final strong = theme.brightness == Brightness.dark ? scheme.primary : AppColors.blue;
+    final strong = theme.brightness == Brightness.dark ? scheme.primary : AppColors.brand;
 
     return Card(
       child: Padding(
@@ -458,10 +458,10 @@ class _PeakCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.yellow.withValues(alpha: 0.18),
+                    color: AppColors.accent.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.schedule_rounded, color: AppColors.yellow, size: 20),
+                  child: const Icon(Icons.schedule_rounded, color: AppColors.accent, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

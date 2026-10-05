@@ -135,7 +135,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             const SizedBox(height: 12),
             TextButton.icon(
-              style: TextButton.styleFrom(foregroundColor: AppColors.blue),
+              style: TextButton.styleFrom(foregroundColor: brandColor(context)),
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
