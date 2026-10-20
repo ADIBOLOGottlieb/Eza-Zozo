@@ -5,6 +5,7 @@ import '../../models.dart';
 import '../../models_admin.dart' show frenchWeekday;
 import '../../providers/auth_provider.dart';
 import '../../services/admin_api.dart';
+import '../../services/restaurant_scope.dart';
 import '../../theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/animations.dart';
@@ -67,7 +68,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Administration', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                // Restaurant suivi : celui du gérant, ou celui choisi par le propriétaire.
+                Text(
+                  user?.restaurantName ?? RestaurantScope.instance.selected?.name ?? 'Administration',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
                 Text(user?.name ?? '',
                     style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ],

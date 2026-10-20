@@ -26,7 +26,8 @@ function fire(fn, ...args) {
   }
 }
 const toUser = (userId, message) => userId && fire((...a) => pushModule().notifyUser(...a), userId, message);
-const toRole = (role, message) => fire((...a) => pushModule().notifyRole(...a), role, message);
+// Personnel du restaurant de la commande (+ propriétaire).
+const toRole = (role, message, order) => fire((...a) => pushModule().notifyRole(...a), role, message, order?.restaurant_id ?? null);
 
 /** Nouvelle commande → administrateurs. */
 function newOrder(order) {
@@ -34,7 +35,7 @@ function newOrder(order) {
     title: `Nouvelle commande n°${order.id}`,
     body: `${order.customer_name || 'Client'} – ${order.total} FCFA (${order.mode === 'delivery' ? 'livraison' : 'à emporter'})`,
     data: data(order),
-  });
+  }, order);
 }
 
 const STATUS_TEXT = {
@@ -63,7 +64,7 @@ function readyForDrivers(order) {
     title: 'Nouvelle livraison disponible',
     body: `Commande n°${order.id}${order.address ? ` – ${String(order.address).slice(0, 80)}` : ''}`,
     data: data(order, 'delivery'),
-  });
+  }, order);
 }
 
 /** Livraison attribuée par l'admin → livreur. */
@@ -81,7 +82,7 @@ function driverTook(order, driverName) {
     title: 'Livraison prise en charge',
     body: `${driverName || 'Un livreur'} a pris la livraison n°${order.id}`,
     data: data(order),
-  });
+  }, order);
 }
 
 /** « Livraison faite » du livreur → client et administrateurs. */
@@ -95,7 +96,7 @@ function driverDelivered(order, driverName = order.driver_name) {
     title: 'Livraison faite',
     body: `Commande n°${order.id} livrée par ${driverName || 'le livreur'}`,
     data: data(order),
-  });
+  }, order);
 }
 
 /** « Reçu » du client → administrateurs. */
@@ -104,13 +105,13 @@ function deliveryReceived(order) {
     title: 'Réception confirmée',
     body: `Commande n°${order.id} : réception confirmée par le client`,
     data: data(order),
-  });
+  }, order);
 }
 
 /** Paiement reçu → client et administrateurs. */
 function paymentReceived(order, amount) {
   if (order.source !== 'counter') toUser(order.user_id, { title: 'Paiement reçu', body: `Paiement de ${amount} FCFA reçu pour la commande n°${order.id}. Merci !`, data: data(order) });
-  toRole('admin', { title: 'Paiement reçu', body: `Commande n°${order.id} – ${amount} FCFA`, data: data(order) });
+  toRole('admin', { title: 'Paiement reçu', body: `Commande n°${order.id} – ${amount} FCFA`, data: data(order) }, order);
 }
 
 module.exports = {

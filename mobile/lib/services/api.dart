@@ -6,8 +6,11 @@ import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
+import 'package:image_picker/image_picker.dart' show XFile;
+
 import '../config.dart';
 import '../models.dart';
+import 'restaurant_scope.dart';
 
 /// Custom exception for API errors with detailed information
 class ApiException implements Exception {
@@ -16,11 +19,15 @@ class ApiException implements Exception {
   final bool isRetryable;
   final dynamic originalError;
 
+  /// Code d'erreur stable renvoyé par le serveur (ex. 'restaurant_unavailable'), sinon null.
+  final String? code;
+
   ApiException(
     this.message, [
     this.statusCode,
     this.isRetryable = false,
     this.originalError,
+    this.code,
   ]);
 
   /// Returns true if this error is due to network issues (5xx, timeout, socket errors)
@@ -120,7 +127,10 @@ class ApiCache {
 }
 
 class Api {
-  Api._();
+  Api._() {
+    // Autre restaurant : catalogue, réglages et listes en cache ne valent plus.
+    RestaurantScope.instance.onChanged = invalidateCache;
+  }
   static final Api instance = Api._();
 
   String? token;
@@ -142,13 +152,23 @@ class Api {
   /// Called to log API events for debugging
   void Function(String message)? onLog;
 
+  /// Le restaurant choisi n'existe plus ou ne prend plus de commandes (le client doit en choisir un autre).
+  void Function()? onRestaurantUnavailable;
+
   Uri _uri(String path, [Map<String, String>? query]) =>
       Uri.parse('$apiBaseUrl/api$path').replace(queryParameters: query);
 
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',
+        ...restaurantHeaders,
       };
+
+  /// En-tête du restaurant choisi (propriétaire, client) ; vide pour le personnel d'un restaurant.
+  Map<String, String> get restaurantHeaders {
+    final scope = RestaurantScope.instance.current.value;
+    return scope == null ? const {} : {'X-Restaurant-Id': scope};
+  }
 
   /// Journal de mise au point : affiché seulement en mode debug (jamais de numéro de téléphone).
   void _log(String message) {
@@ -259,12 +279,16 @@ class Api {
 
         // Check if error is retryable
         lastStatusCode = res.statusCode;
+        final code = body is Map && body['code'] is String ? body['code'] as String : null;
+        if (code == 'restaurant_unavailable') onRestaurantUnavailable?.call();
         lastError = ApiException(
           body is Map && body['error'] is String
               ? body['error'] as String
               : 'Erreur (${res.statusCode})',
           res.statusCode,
           _isRetryable(null, res.statusCode),
+          null,
+          code,
         );
 
         if (!_isRetryable(null, res.statusCode) || attempt == attempts - 1) {
@@ -658,9 +682,9 @@ class Api {
     return delete('/admin/products/$id');
   }
 
-  /// Upload image file
-  Future<String> uploadImage(File file) async {
-    _log('Uploading image: ${file.path}');
+  /// Envoie une image du menu (téléphone, tablette ou navigateur : lue en mémoire, pas de chemin de fichier).
+  Future<String> uploadImage(XFile file) async {
+    _log('Uploading image: ${file.name}');
 
     if (_circuitBreaker.isOpen) {
       throw ApiException(
@@ -670,17 +694,19 @@ class Api {
       );
     }
 
-    final ext = file.path.split('.').last.toLowerCase();
+    final ext = (file.name.contains('.') ? file.name : file.path).split('.').last.toLowerCase();
     final subtype = ext == 'png' ? 'png' : (ext == 'webp' ? 'webp' : 'jpeg');
 
     final sentToken = token;
     try {
       final req = http.MultipartRequest('POST', _uri('/admin/upload'))
         ..headers['Authorization'] = 'Bearer $sentToken'
+        ..headers.addAll(restaurantHeaders)
         ..files.add(
-          await http.MultipartFile.fromPath(
+          http.MultipartFile.fromBytes(
             'image',
-            file.path,
+            await file.readAsBytes(),
+            filename: file.name.isEmpty ? 'image.$ext' : file.name,
             contentType: MediaType('image', subtype),
           ),
         );

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -122,7 +120,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     if (picked == null) return;
     setState(() => _uploading = true);
     try {
-      final url = await Api.instance.uploadImage(File(picked.path));
+      final url = await Api.instance.uploadImage(picked);
       if (mounted) setState(() => _imageUrl.text = url);
     } catch (e) {
       if (mounted) showMessage(context, e, error: true);

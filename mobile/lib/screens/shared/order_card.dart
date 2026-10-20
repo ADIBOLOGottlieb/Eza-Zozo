@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models.dart';
+import '../../services/restaurant_scope.dart';
 import '../../theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/common.dart';
@@ -55,6 +56,20 @@ class OrderCard extends StatelessWidget {
                   StatusChip(status: order.status, delivery: order.isDelivery),
                 ],
               ),
+              // Compte qui suit plusieurs restaurants (propriétaire, client) : de quel restaurant vient la commande.
+              if (order.restaurantName != null && RestaurantScope.instance.hasSeveral) ...[
+                const SizedBox(height: 6),
+                Row(children: [
+                  Icon(Icons.storefront_rounded, size: 15, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(order.restaurantName!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  ),
+                ]),
+              ],
               if (showCustomer) ...[
                 const SizedBox(height: 6),
                 Text(_customerLine(), style: const TextStyle(fontWeight: FontWeight.w600)),

@@ -446,15 +446,18 @@ test('serveur : frais absorbés, zones, comptoir, rapports', async (t) => {
     })).arrayBuffer());
     assert.deepEqual([...raw.subarray(0, 3)], [0xef, 0xbb, 0xbf], 'BOM UTF-8');
     const lines = raw.toString('utf8').slice(1).trimEnd().split('\r\n');
-    assert.equal(lines[0], 'id;date;heure;canal;mode;zone;client;telephone;articles;sous_total;livraison;frais_paiement;total;paiement;statut_paiement;statut;livreur;commission_agregateur;net_restaurant');
+    // Colonne « restaurant » ajoutée en dernier (les colonnes existantes ne bougent pas).
+    assert.equal(lines[0], 'id;date;heure;canal;mode;zone;client;telephone;articles;sous_total;livraison;frais_paiement;total;paiement;statut_paiement;statut;livreur;commission_agregateur;net_restaurant;restaurant');
     assert.equal(lines.length, 1 + 7, 'toutes les commandes de la période, annulées comprises');
     const first = lines[1].split(';');
+    const restaurant = first.pop();
+    assert.ok(restaurant, 'nom du restaurant renseigné');
     // Client = nom du compte (colonne 6, non vérifiée) ; téléphone protégé (commence par « + »).
     first.splice(6, 1);
     assert.deepEqual(first, [String(o1), '2025-01-10', '11:50', 'application', 'livraison', '', "'+22890111111", '2x Poulet',
       '4000', '1000', '0', '5000', 'espèces', 'à encaisser', 'livrée', 'Yao', '0', '5000']);
     const flooz = lines.find((l) => l.startsWith(`${o2};`)).split(';');
-    assert.deepEqual(flooz.slice(-2), ['60', '2940']);
+    assert.deepEqual(flooz.slice(-3, -1), ['60', '2940']);
     const counterLine = lines.find((l) => l.startsWith(`${o3};`));
     assert.ok(counterLine.includes(`"'=HYPERLINK(""http://x"")"`), counterLine);
     assert.ok(counterLine.includes(';comptoir;sur place;'));

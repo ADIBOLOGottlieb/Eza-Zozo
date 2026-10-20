@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../providers/auth_provider.dart';
+import '../../services/restaurant_scope.dart';
 import '../../widgets/app_nav_bar.dart';
+import '../../widgets/restaurant_switcher.dart';
+import '../owner/owner_overview_screen.dart';
 import '../../services/admin_api.dart';
 import '../../services/order_alert.dart';
 import '../../utils/format.dart';
@@ -124,6 +129,31 @@ class AdminShellState extends State<AdminShell> {
     );
   }
 
+  /// Propriétaire : ouvre un restaurant précis sur l'onglet [tab] (depuis la vue d'ensemble).
+  void _openRestaurant(int restaurantId, int tab) {
+    RestaurantScope.instance.selectRestaurant(restaurantId);
+    goTo(tab);
+  }
+
+  /// Onglets du propriétaire en vue « tous les restaurants » : vue d'ensemble, commandes de tous ;
+  /// caisse et menu demandent un restaurant précis.
+  Widget _ownerAllPage(int tab) => switch (tab) {
+        dashboardTab => OwnerOverviewScreen(
+            active: _index == dashboardTab,
+            onOpenRestaurant: (id) => _openRestaurant(id, dashboardTab),
+            onOpenOrders: (id) => _openRestaurant(id, ordersTab),
+          ),
+        counterTab => const ChooseRestaurantView(
+            title: 'Caisse',
+            message: 'Une vente au comptoir est enregistrée dans un restaurant précis. Choisissez le restaurant :',
+          ),
+        menuTab => const ChooseRestaurantView(
+            title: 'Menu',
+            message: 'Chaque restaurant a son propre menu. Choisissez le restaurant à modifier :',
+          ),
+        _ => _page(tab),
+      };
+
   Widget _page(int tab) => switch (tab) {
         dashboardTab => DashboardScreen(active: _index == dashboardTab),
         ordersTab => AdminOrdersScreen(active: _index == ordersTab),
@@ -175,19 +205,32 @@ class AdminShellState extends State<AdminShell> {
     final selected = tabs.indexOf(_index);
     final destinations = [for (final t in tabs) _destination(t, reviewCount)];
 
-    // Bandeau « Nouvelle commande ! / J'ai vu » au-dessus de tous les onglets (sonnerie en cours).
+    // Barre « Restaurant suivi » : propriétaire, et seulement si le serveur connaît les restaurants.
+    final owner = context.select<AuthProvider, bool>((a) => a.user?.isOwner ?? false) &&
+        RestaurantScope.instance.restaurants.value.isNotEmpty;
+
+    // Bandeau « Nouvelle commande ! / J'ai vu » au-dessus de tous les onglets (sonnerie en cours) ;
+    // propriétaire : restaurant suivi (ou tous), au-dessus de tout.
     final body = Column(
       children: [
+        if (owner) const OwnerRestaurantBar(),
         const OrderAlertBanner(),
         Expanded(
           // Bandeau affiché : il occupe déjà la barre d'état, les onglets n'ont plus à s'en écarter.
           child: ValueListenableBuilder<bool>(
             valueListenable: OrderAlert.instance.ringing,
             builder: (context, ringing, child) =>
-                MediaQuery.removePadding(context: context, removeTop: ringing, child: child!),
-            child: FadeIndexedStack(
-              index: selected,
-              children: [for (final t in tabs) _page(t)],
+                MediaQuery.removePadding(context: context, removeTop: ringing || owner, child: child!),
+            // Autre restaurant : tous les onglets repartent de zéro (listes, minuteries, filtres).
+            child: ValueListenableBuilder<String?>(
+              valueListenable: RestaurantScope.instance.current,
+              builder: (context, scope, _) => FadeIndexedStack(
+                key: ValueKey('scope-$scope'),
+                index: selected,
+                children: [
+                  for (final t in tabs) owner && scope == RestaurantScope.all ? _ownerAllPage(t) : _page(t),
+                ],
+              ),
             ),
           ),
         ),

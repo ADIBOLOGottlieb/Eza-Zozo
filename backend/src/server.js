@@ -5,7 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const multer = require('multer');
-const { db, transaction, getSettings } = require('./db');
+const { db, transaction, getSettings, enterRestaurant } = require('./db');
 const authModule = require('./auth');
 const { requireAuth, requireAdmin, requireManager } = authModule;
 const { seedIfEmpty } = require('./seed');
@@ -22,6 +22,9 @@ const { createGeoRouter } = require('./geo');
 const { createErrorRouter } = require('./error-log');
 const zones = require('./zones');
 const { createReportsRouter } = require('./reports');
+const restaurants = require('./restaurants');
+const { rid, scopeWhere, assertRestaurantAccess, canAccessRestaurant } = restaurants;
+const { errorBody } = require('./payments/util');
 
 /** Téléphone normalisé (auth.js) ; repli : numéro tel quel. */
 const normalizePhone = (p) => (typeof authModule.normalizePhone === 'function' ? authModule.normalizePhone(p) : p) || p;
@@ -92,6 +95,9 @@ app.use(
 // Le webhook de paiement lit le corps brut : il est monté avant express.json().
 app.use(payments.router);
 app.use(express.json({ limit: '100kb' }));
+// Restaurant de la requête (restaurants.js) : gérant/livreur = le leur, propriétaire et clients = X-Restaurant-Id.
+app.use(restaurants.restaurantScope);
+app.use(restaurants.createRouter());
 
 // Compte client (profil, mot de passe, avatar, adresses...) : backend/src/account.js.
 // Suppression de son compte par un livreur : ses livraisons en cours repartent dans « À livrer ».
@@ -180,15 +186,11 @@ const h = (fn) => async (req, res) => {
     await fn(req, res);
   } catch (err) {
     if (!err.status) log.error('erreur serveur', { path: req.path, error: err.message, stack: err.stack });
-    res.status(err.status || 500).json({ error: err.status ? err.message : 'Erreur serveur' });
+    res.status(err.status || 500).json(errorBody(err));
   }
 };
 
-function httpError(status, message) {
-  const err = new Error(message);
-  err.status = status;
-  return err;
-}
+const { httpError } = require('./payments/util');
 
 const orderLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
@@ -231,8 +233,9 @@ function presentOrder(o, viewer) {
 // Vente au comptoir : customer_name = nom donné par le client (customer_label) ou « Comptoir ».
 const ORDER_SELECT = `SELECT o.*,
     CASE WHEN o.source = 'counter' THEN COALESCE(o.customer_label, 'Comptoir') ELSE u.name END AS customer_name,
-    d.name AS driver_name, d.phone AS driver_phone
-  FROM orders o JOIN users u ON u.id = o.user_id LEFT JOIN users d ON d.id = o.driver_id`;
+    d.name AS driver_name, d.phone AS driver_phone, r.name AS restaurant_name
+  FROM orders o JOIN users u ON u.id = o.user_id LEFT JOIN users d ON d.id = o.driver_id
+  LEFT JOIN restaurants r ON r.id = o.restaurant_id`;
 
 function loadOrder(id) {
   const order = db.prepare(`${ORDER_SELECT} WHERE o.id = ?`).get(id);
@@ -266,16 +269,16 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', uptime: Math.roun
  * Frais de paiement exposés à l'app : taux par opérateur (commission de l'agrégateur ou réglage
  * admin) + provenance. payment_fee_percent = taux Flooz (compatibilité anciennes versions).
  */
-function feeSettings() {
-  const fee = payments.feeInfo();
+function feeSettings(restaurantId) {
+  const fee = payments.feeInfo(restaurantId);
   return {
     payment_fee_percent: fee.by_operator.flooz,
     payment_fee_percent_by_operator: fee.by_operator,
     payment_fee_source: fee.source,
     // Qui paie la commission : 'restaurant' (aucun frais facturé au client) ou 'client' (frais ajoutés au total).
-    payment_fees_paid_by: getSettings().payment_fees_paid_by,
+    payment_fees_paid_by: getSettings(restaurantId).payment_fees_paid_by,
     // Réglage admin (repli quand l'agrégateur n'a pas de commission configurée).
-    payment_fee_percent_settings: getSettings().payment_fee_percent,
+    payment_fee_percent_settings: getSettings(restaurantId).payment_fee_percent,
   };
 }
 
@@ -300,14 +303,17 @@ function openingAndFees(s) {
 }
 
 app.get('/api/settings', h((req, res) => {
-  const s = getSettings();
+  const restaurantId = rid(req);
+  const s = getSettings(restaurantId);
   res.json({
+    restaurant_id: restaurantId,
+    restaurant_name: restaurants.restaurantName(restaurantId),
     delivery_fee: s.delivery_fee,
     min_order: s.min_order,
     ...openingAndFees(s),
     restaurant_phone: s.restaurant_phone,
     restaurant_address: s.restaurant_address,
-    ...feeSettings(),
+    ...feeSettings(restaurantId),
     payment_mode: payments.paymentInfo().mode,
     payment_provider: payments.paymentInfo().provider,
     max_quantity_per_item: MAX_QUANTITY_PER_ITEM,
@@ -328,8 +334,8 @@ function parseZoneId(value) {
 }
 
 /** Frais de livraison (delivery-fee.js) : zones actives chargées seulement en mode 'zone'. */
-function deliveryQuote(settings, loc, zoneId) {
-  return computeDeliveryFee(settings, loc, settings.delivery_fee_mode === 'zone' ? zones.activeZones() : [], zoneId);
+function deliveryQuote(settings, loc, zoneId, restaurantId) {
+  return computeDeliveryFee(settings, loc, settings.delivery_fee_mode === 'zone' ? zones.activeZones(restaurantId) : [], zoneId);
 }
 
 // Devis des frais de livraison pour une position et/ou une zone (même calcul que la commande, delivery-fee.js).
@@ -338,19 +344,21 @@ app.get('/api/delivery/quote', h((req, res) => {
   const given = (v) => v !== undefined && v !== '';
   let loc = null;
   if (given(lat) || given(lng)) loc = parseLocation({ lat, lng });
-  res.json(deliveryQuote(getSettings(), loc, parseZoneId(req.query.zone_id)));
+  const restaurantId = rid(req);
+  res.json(deliveryQuote(getSettings(restaurantId), loc, parseZoneId(req.query.zone_id), restaurantId));
 }));
 
-app.get('/api/categories', h((_req, res) => {
-  res.json(db.prepare('SELECT * FROM categories ORDER BY position, id').all());
+app.get('/api/categories', h((req, res) => {
+  res.json(db.prepare('SELECT * FROM categories WHERE restaurant_id = ? ORDER BY position, id').all(rid(req)));
 }));
 
 app.get('/api/products', h((req, res) => {
   const all = req.query.all === '1';
+  const restaurantId = rid(req);
   const rows = db
-    .prepare(`SELECT * FROM products ${all ? '' : 'WHERE available = 1'} ORDER BY popular DESC, name`)
-    .all();
-  const byId = packs.catalogById();
+    .prepare(`SELECT * FROM products WHERE restaurant_id = ? ${all ? '' : 'AND available = 1'} ORDER BY popular DESC, name`)
+    .all(restaurantId);
+  const byId = packs.catalogById(restaurantId);
   const list = rows.map((p) => mapProduct(p, byId));
   // Catalogue client : un pack dont un plat est épuisé est masqué.
   res.json(all ? list : list.filter((p) => p.available));
@@ -373,13 +381,14 @@ function parseLocation(location) {
  * Lignes de commande : les prix sont TOUJOURS recalculés côté serveur à partir du catalogue.
  * @returns {{ product: object, qty: number }[]}
  */
-function priceLines(items) {
+function priceLines(items, restaurantId) {
   if (!Array.isArray(items) || items.length === 0 || items.length > 50) throw httpError(400, 'Votre panier est vide');
-  const getProduct = db.prepare('SELECT * FROM products WHERE id = ?');
+  // Seulement les plats du restaurant de la commande.
+  const getProduct = db.prepare('SELECT * FROM products WHERE id = ? AND restaurant_id = ?');
   const perProduct = new Map();
   return items.map((it) => {
     const qty = Number(it?.quantity);
-    const p = getProduct.get(Number(it?.product_id));
+    const p = getProduct.get(Number(it?.product_id), Number(restaurantId));
     if (!p || !p.available) throw httpError(400, `Un article n'est plus disponible`);
     const details = packs.lineDetails(p); // pack : tous ses plats doivent être disponibles
     if (!Number.isInteger(qty) || qty < 1) throw httpError(400, 'Quantité invalide');
@@ -394,7 +403,7 @@ function priceLines(items) {
 
 const ORDER_COLUMNS = ['user_id', 'mode', 'address', 'phone', 'note', 'payment_method', 'subtotal', 'delivery_fee', 'total',
   'payment_fee', 'payment_fee_percent', 'payment_status', 'payment_token', 'delivery_lat', 'delivery_lng', 'delivery_accuracy',
-  'delivery_distance_km', 'delivery_zone_id', 'delivery_zone_name', 'status', 'source', 'dine_in', 'customer_label'];
+  'delivery_distance_km', 'delivery_zone_id', 'delivery_zone_name', 'status', 'source', 'dine_in', 'customer_label', 'restaurant_id'];
 
 /** Insère une commande et ses lignes (transaction) ; colonnes absentes = valeur par défaut. @returns id */
 function insertOrder(fields, lines) {
@@ -421,7 +430,9 @@ function checkedPhone(raw) {
 }
 
 app.post('/api/orders', requireAuth, orderLimiter, h((req, res) => {
-  const settings = getSettings();
+  // Restaurant choisi dans l'app (X-Restaurant-Id), sinon le restaurant par défaut.
+  const restaurantId = rid(req);
+  const settings = getSettings(restaurantId);
   // Interrupteur manuel et horaires d'ouverture (hours.js).
   const openState = hours.openState(settings);
   if (!openState.is_open) throw httpError(400, hours.closedMessage(openState));
@@ -441,20 +452,20 @@ app.post('/api/orders', requireAuth, orderLimiter, h((req, res) => {
   const loc = mode === 'delivery' ? parseLocation(location) : null;
   const zoneId = mode === 'delivery' ? parseZoneId(body.zone_id) : null;
 
-  const lines = priceLines(items);
+  const lines = priceLines(items, restaurantId);
   const subtotal = lines.reduce((s, l) => s + l.product.price * l.qty, 0);
   if (subtotal < settings.min_order) throw httpError(400, `Commande minimum : ${settings.min_order} FCFA`);
   // Frais de livraison recalculés par le serveur (jamais le montant envoyé par l'app) : fixe, distance ou zone.
-  const quote = mode === 'delivery' ? deliveryQuote(settings, loc, zoneId) : null;
+  const quote = mode === 'delivery' ? deliveryQuote(settings, loc, zoneId, restaurantId) : null;
   if (quote && !quote.within_zone) throw httpError(400, quote.message);
   const deliveryFee = quote ? quote.fee : 0;
   // Frais de paiement selon payment_fees_paid_by (payments/core.js) ; le taux est figé sur la commande
   // (commission et net calculés au même taux au moment du paiement).
-  const { fee: paymentFee, percent: paymentFeePercent } = payments.paymentFeeDetails(subtotal + deliveryFee, payment_method);
+  const { fee: paymentFee, percent: paymentFeePercent } = payments.paymentFeeDetails(subtotal + deliveryFee, payment_method, restaurantId);
   const mobile = payments.isMobileMoney(payment_method);
 
   const orderId = insertOrder({
-    user_id: req.user.id, mode, address: mode === 'delivery' ? address.slice(0, 300) : null, phone: phone.slice(0, 20),
+    restaurant_id: restaurantId, user_id: req.user.id, mode, address: mode === 'delivery' ? address.slice(0, 300) : null, phone: phone.slice(0, 20),
     note: note.slice(0, 300) || null, payment_method, subtotal, delivery_fee: deliveryFee, total: subtotal + deliveryFee + paymentFee,
     payment_fee: paymentFee, payment_fee_percent: paymentFeePercent, payment_status: mobile ? 'pending' : 'unpaid',
     payment_token: mobile ? payments.newToken() : null, delivery_lat: loc?.lat ?? null, delivery_lng: loc?.lng ?? null,
@@ -478,7 +489,9 @@ app.get('/api/orders', requireAuth, h((req, res) => {
 app.get('/api/orders/:id', requireAuth, h((req, res) => {
   const order = loadOrder(Number(req.params.id));
   // Le livreur attribué peut aussi relire la commande.
-  const allowed = order && (order.user_id === req.user.id || req.user.role === 'admin' || (order.driver_id && order.driver_id === req.user.id));
+  // Le gérant ne voit que les commandes de son restaurant ; le propriétaire, toutes.
+  const staff = req.user.role === 'admin' && order && canAccessRestaurant(req.user, order.restaurant_id);
+  const allowed = order && (order.user_id === req.user.id || staff || (order.driver_id && order.driver_id === req.user.id));
   if (!allowed) throw httpError(404, 'Commande introuvable');
   res.json(presentOrder(order, req.user));
 }));
@@ -530,7 +543,7 @@ app.post('/api/orders/:id/payment-method', requireAuth, h((req, res) => {
   if (pendingAttempt) throw httpError(400, 'Une demande de paiement est en cours : attendez son expiration');
   if (order.payment_method === method) return res.json(presentOrder(order, req.user));
   // Même calcul qu'à la création (payment_fees_paid_by), au taux du nouvel opérateur.
-  const { fee, percent } = payments.paymentFeeDetails(order.subtotal + order.delivery_fee, method);
+  const { fee, percent } = payments.paymentFeeDetails(order.subtotal + order.delivery_fee, method, order.restaurant_id);
   const total = order.subtotal + order.delivery_fee + fee;
   const info = db
     .prepare(`UPDATE orders SET payment_method = ?, payment_fee = ?, payment_fee_percent = ?, total = ?, updated_at = datetime('now')
@@ -564,55 +577,56 @@ function peakWindow(hourly) {
   return best;
 }
 
-app.get('/api/admin/stats', requireManager, h((_req, res) => {
-  const today = db
-    .prepare(
-      `SELECT COUNT(*) AS orders, COALESCE(SUM(CASE WHEN ${COUNTED} THEN total END), 0) AS revenue
-       FROM orders WHERE date(created_at) = date('now')`,
-    )
-    .get();
+// Tableau de bord : un restaurant, ou tous (propriétaire, X-Restaurant-Id: all).
+app.get('/api/admin/stats', requireManager, h((req, res) => {
+  const sc = scopeWhere(req, 'restaurant_id');
+  const sco = scopeWhere(req, 'o.restaurant_id');
+  const S = ` AND ${sc.sql}`;
+  const one = (sql) => db.prepare(sql).get(...sc.params);
+  const today = one(
+    `SELECT COUNT(*) AS orders, COALESCE(SUM(CASE WHEN ${COUNTED} THEN total END), 0) AS revenue
+     FROM orders WHERE date(created_at) = date('now')${S}`,
+  );
   // Même jour la semaine dernière, jusqu'à la même heure (comparaison à moment égal de la journée).
-  const sameDayLastWeek = db
-    .prepare(
-      `SELECT COUNT(*) AS orders, COALESCE(SUM(CASE WHEN ${COUNTED} THEN total END), 0) AS revenue
-       FROM orders WHERE date(created_at) = date('now', '-7 days') AND created_at <= datetime('now', '-7 days')`,
-    )
-    .get();
+  const sameDayLastWeek = one(
+    `SELECT COUNT(*) AS orders, COALESCE(SUM(CASE WHEN ${COUNTED} THEN total END), 0) AS revenue
+     FROM orders WHERE date(created_at) = date('now', '-7 days') AND created_at <= datetime('now', '-7 days')${S}`,
+  );
   // Commandes non annulées des 30 derniers jours, par heure (Lomé = UTC).
   const hourly = Array(24).fill(0);
   for (const r of db
     .prepare(
       `SELECT CAST(strftime('%H', created_at) AS INTEGER) AS hour, COUNT(*) AS n FROM orders
-       WHERE status != 'cancelled' AND created_at >= datetime('now', '-30 days') GROUP BY hour`,
+       WHERE status != 'cancelled' AND created_at >= datetime('now', '-30 days')${S} GROUP BY hour`,
     )
-    .all()) {
+    .all(...sc.params)) {
     if (r.hour >= 0 && r.hour < 24) hourly[r.hour] = Number(r.n);
   }
   // Total : commandes livrées, hors remboursées.
-  const total = db
-    .prepare(`SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue FROM orders
-              WHERE status = 'delivered' AND payment_status != 'refunded'`)
-    .get();
-  const active = db
-    .prepare(`SELECT COUNT(*) AS n FROM orders WHERE status NOT IN ('delivered', 'cancelled')`)
-    .get().n;
-  const pending = db.prepare(`SELECT COUNT(*) AS n FROM orders WHERE status = 'pending'`).get().n;
+  const total = one(`SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue FROM orders
+                    WHERE status = 'delivered' AND payment_status != 'refunded'${S}`);
+  const active = one(`SELECT COUNT(*) AS n FROM orders WHERE status NOT IN ('delivered', 'cancelled')${S}`).n;
+  const pending = one(`SELECT COUNT(*) AS n FROM orders WHERE status = 'pending'${S}`).n;
+  // Clients communs à tous les restaurants.
   const customers = db.prepare(`SELECT COUNT(*) AS n FROM users WHERE role = 'customer'`).get().n;
-  const alerts = db.prepare(`SELECT COUNT(*) AS n FROM alerts WHERE resolved = 0`).get().n;
+  const alerts = req.allRestaurants
+    ? db.prepare(`SELECT COUNT(*) AS n FROM alerts WHERE resolved = 0`).get().n
+    : db.prepare(`SELECT COUNT(*) AS n FROM alerts WHERE resolved = 0 AND (restaurant_id = ? OR restaurant_id IS NULL)`).get(rid(req)).n;
   const topProducts = db
     .prepare(
       `SELECT oi.name, SUM(oi.quantity) AS quantity, SUM(oi.quantity * oi.unit_price) AS revenue
        FROM order_items oi JOIN orders o ON o.id = oi.order_id
-       WHERE o.status != 'cancelled' AND o.payment_status != 'refunded' GROUP BY oi.name ORDER BY quantity DESC LIMIT 5`,
+       WHERE o.status != 'cancelled' AND o.payment_status != 'refunded' AND ${sco.sql}
+       GROUP BY oi.name ORDER BY quantity DESC LIMIT 5`,
     )
-    .all();
-  // Aujourd'hui par canal (application / comptoir), mêmes règles que `today`.
+    .all(...sco.params);
+  // Aujourd'hui par canal (application / comptoir), mêmes règles que today.
   const channelRows = db
     .prepare(
       `SELECT source AS channel, COUNT(*) AS orders, COALESCE(SUM(CASE WHEN ${COUNTED} THEN total END), 0) AS revenue
-       FROM orders WHERE date(created_at) = date('now') GROUP BY source`,
+       FROM orders WHERE date(created_at) = date('now')${S} GROUP BY source`,
     )
-    .all();
+    .all(...sc.params);
   const byChannelToday = ['app', 'counter'].map((channel) => {
     const r = channelRows.find((x) => x.channel === channel);
     return { channel, orders: Number(r?.orders ?? 0), revenue: Number(r?.revenue ?? 0) };
@@ -621,11 +635,12 @@ app.get('/api/admin/stats', requireManager, h((_req, res) => {
     .prepare(
       `SELECT date(created_at) AS day, COUNT(*) AS orders,
               COALESCE(SUM(CASE WHEN ${COUNTED} THEN total END), 0) AS revenue
-       FROM orders WHERE date(created_at) >= date('now', '-6 days')
+       FROM orders WHERE date(created_at) >= date('now', '-6 days')${S}
        GROUP BY day ORDER BY day`,
     )
-    .all();
+    .all(...sc.params);
   res.json({
+    restaurant_id: req.allRestaurants ? null : rid(req),
     today,
     total,
     active,
@@ -646,8 +661,10 @@ app.get('/api/admin/stats', requireManager, h((_req, res) => {
 // Pagination : ?limit=&before_id= ; en-tête X-Has-More: 1|0. Filtres : ?status=, ?source=app|counter.
 app.get('/api/admin/orders', requireAdmin, h((req, res) => {
   const { status, source } = req.query;
-  const conds = [];
-  const params = [];
+  // Restaurant de la requête ; vue « tous » (propriétaire) : toutes les commandes.
+  const sc = scopeWhere(req);
+  const conds = [sc.sql];
+  const params = [...sc.params];
   if (status === 'active') conds.push(`o.status NOT IN ('delivered', 'cancelled')`);
   else if (typeof status === 'string' && ORDER_STATUSES.includes(status)) {
     conds.push('o.status = ?');
@@ -675,16 +692,17 @@ app.post('/api/admin/counter-orders', requireAdmin, h((req, res) => {
   const rawPhone = optText(body.phone, 'Numéro de téléphone');
   const mobile = payments.isMobileMoney(payment_method);
   if (mobile && !rawPhone) throw httpError(400, 'Numéro de téléphone requis pour le paiement mobile money');
-  const settings = getSettings();
+  const restaurantId = rid(req);
+  const settings = getSettings(restaurantId);
   const phone = rawPhone ? checkedPhone(rawPhone) : String(settings.restaurant_phone || '').trim() || '-';
 
-  const lines = priceLines(body.items);
+  const lines = priceLines(body.items, restaurantId);
   const subtotal = lines.reduce((s, l) => s + l.product.price * l.qty, 0);
   // Pas de livraison ; frais de paiement selon payment_fees_paid_by (comme dans l'app).
-  const { fee: paymentFee, percent: paymentFeePercent } = payments.paymentFeeDetails(subtotal, payment_method);
+  const { fee: paymentFee, percent: paymentFeePercent } = payments.paymentFeeDetails(subtotal, payment_method, restaurantId);
 
   const orderId = insertOrder({
-    user_id: req.user.id, mode: 'pickup', address: null, phone: phone.slice(0, 20), note: note.slice(0, 300) || null,
+    restaurant_id: restaurantId, user_id: req.user.id, mode: 'pickup', address: null, phone: phone.slice(0, 20), note: note.slice(0, 300) || null,
     payment_method, subtotal, delivery_fee: 0, total: subtotal + paymentFee, payment_fee: paymentFee,
     payment_fee_percent: paymentFeePercent,
     // Espèces : encaissé au comptoir, la commande part directement en cuisine.
@@ -709,6 +727,8 @@ app.patch('/api/admin/orders/:id/status', requireAdmin, h((req, res) => {
   if (typeof status !== 'string' || !ORDER_STATUSES.includes(status)) throw httpError(400, 'Statut invalide');
   const order = loadOrder(Number(req.params.id));
   if (!order) throw httpError(404, 'Commande introuvable');
+  assertRestaurantAccess(req.user, order.restaurant_id, 'Commande introuvable');
+  enterRestaurant(order.restaurant_id);
   // Machine d'états (order-status.js) : statuts définitifs, livraison sans livreur, retrait...
   const refused = adminTransitionError(order, status);
   if (refused) throw httpError(400, refused);
@@ -745,8 +765,8 @@ app.post('/api/admin/categories', requireManager, h((req, res) => {
   const icon = optText(req.body?.icon, 'Icône');
   if (!name) throw httpError(400, 'Nom requis');
   const info = db
-    .prepare('INSERT INTO categories (name, icon, position) VALUES (?, ?, ?)')
-    .run(name, icon || null, Number(position) || 0);
+    .prepare('INSERT INTO categories (name, icon, position, restaurant_id) VALUES (?, ?, ?, ?)')
+    .run(name, icon || null, Number(position) || 0, rid(req));
   audit('category_created', { userId: req.user.id, details: { name }, ip: req.ip });
   res.status(201).json(db.prepare('SELECT * FROM categories WHERE id = ?').get(info.lastInsertRowid));
 }));
@@ -757,20 +777,20 @@ app.put('/api/admin/categories/:id', requireManager, h((req, res) => {
   const icon = optText(req.body?.icon, 'Icône');
   if (!name) throw httpError(400, 'Nom requis');
   const info = db
-    .prepare('UPDATE categories SET name = ?, icon = ?, position = ? WHERE id = ?')
-    .run(name, icon || null, Number(position) || 0, Number(req.params.id));
+    .prepare('UPDATE categories SET name = ?, icon = ?, position = ? WHERE id = ? AND restaurant_id = ?')
+    .run(name, icon || null, Number(position) || 0, Number(req.params.id), rid(req));
   if (info.changes === 0) throw httpError(404, 'Catégorie introuvable');
   res.json(db.prepare('SELECT * FROM categories WHERE id = ?').get(Number(req.params.id)));
 }));
 
 app.delete('/api/admin/categories/:id', requireManager, h((req, res) => {
-  db.prepare('DELETE FROM categories WHERE id = ?').run(Number(req.params.id));
+  db.prepare('DELETE FROM categories WHERE id = ? AND restaurant_id = ?').run(Number(req.params.id), rid(req));
   audit('category_deleted', { userId: req.user.id, details: { id: Number(req.params.id) }, ip: req.ip });
   res.status(204).end();
 }));
 
 /** Champs d'un produit ; pack_items (facultatif) = contenu d'un pack, [] ou null pour un plat simple. */
-function productFields(body, selfId = null) {
+function productFields(body, selfId = null, restaurantId) {
   const { price, category_id, available, popular } = body || {};
   const name = optText(body?.name, 'Nom');
   const description = optText(body?.description, 'Description');
@@ -780,29 +800,35 @@ function productFields(body, selfId = null) {
   if (!(p > 0 && p < 10_000_000)) throw httpError(400, 'Prix invalide');
   const cat = category_id ? Number(category_id) : null;
   if (cat !== null && !Number.isInteger(cat)) throw httpError(400, 'Catégorie invalide');
-  const packItems = packs.parsePackItems(body?.pack_items, selfId);
+  // Catégorie du même restaurant.
+  if (cat !== null && !db.prepare('SELECT id FROM categories WHERE id = ? AND restaurant_id = ?').get(cat, Number(restaurantId))) {
+    throw httpError(400, 'Catégorie invalide');
+  }
+  const packItems = packs.parsePackItems(body?.pack_items, selfId, restaurantId);
   return [cat, name, description || null, p, imageUrl || null, available === false ? 0 : 1, popular ? 1 : 0, packItems];
 }
 
 app.post('/api/admin/products', requireManager, h((req, res) => {
   const info = db
     .prepare(
-      `INSERT INTO products (category_id, name, description, price, image_url, available, popular, pack_items)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO products (category_id, name, description, price, image_url, available, popular, pack_items, restaurant_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(...productFields(req.body));
+    .run(...productFields(req.body, null, rid(req)), rid(req));
   audit('product_created', { userId: req.user.id, details: { id: info.lastInsertRowid, name: req.body.name }, ip: req.ip });
   res.status(201).json(mapProduct(db.prepare('SELECT * FROM products WHERE id = ?').get(info.lastInsertRowid)));
 }));
 
 app.put('/api/admin/products/:id', requireManager, h((req, res) => {
-  const before = db.prepare('SELECT price FROM products WHERE id = ?').get(Number(req.params.id));
+  const restaurantId = rid(req);
+  const before = db.prepare('SELECT price FROM products WHERE id = ? AND restaurant_id = ?').get(Number(req.params.id), restaurantId);
+  if (!before) throw httpError(404, 'Produit introuvable');
   const info = db
     .prepare(
       `UPDATE products SET category_id = ?, name = ?, description = ?, price = ?, image_url = ?,
-       available = ?, popular = ?, pack_items = ? WHERE id = ?`,
+       available = ?, popular = ?, pack_items = ? WHERE id = ? AND restaurant_id = ?`,
     )
-    .run(...productFields(req.body, Number(req.params.id)), Number(req.params.id));
+    .run(...productFields(req.body, Number(req.params.id), restaurantId), Number(req.params.id), restaurantId);
   if (info.changes === 0) throw httpError(404, 'Produit introuvable');
   const after = db.prepare('SELECT * FROM products WHERE id = ?').get(Number(req.params.id));
   audit('product_updated', {
@@ -815,14 +841,14 @@ app.put('/api/admin/products/:id', requireManager, h((req, res) => {
 
 app.patch('/api/admin/products/:id/availability', requireAdmin, h((req, res) => {
   const info = db
-    .prepare('UPDATE products SET available = ? WHERE id = ?')
-    .run(req.body?.available ? 1 : 0, Number(req.params.id));
+    .prepare('UPDATE products SET available = ? WHERE id = ? AND restaurant_id = ?')
+    .run(req.body?.available ? 1 : 0, Number(req.params.id), rid(req));
   if (info.changes === 0) throw httpError(404, 'Produit introuvable');
   res.json(mapProduct(db.prepare('SELECT * FROM products WHERE id = ?').get(Number(req.params.id))));
 }));
 
 app.delete('/api/admin/products/:id', requireManager, h((req, res) => {
-  db.prepare('DELETE FROM products WHERE id = ?').run(Number(req.params.id));
+  db.prepare('DELETE FROM products WHERE id = ? AND restaurant_id = ?').run(Number(req.params.id), rid(req));
   audit('product_deleted', { userId: req.user.id, details: { id: Number(req.params.id) }, ip: req.ip });
   res.status(204).end();
 }));
@@ -835,7 +861,9 @@ app.post('/api/admin/upload', requireManager, upload.single('image'), h((req, re
 // 200 comptes au plus ; ?q= recherche (nom, téléphone, e-mail).
 app.get('/api/admin/users', requireManager, h((req, res) => {
   const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 50) : '';
-  const params = [];
+  // Clients communs ; nombre de commandes et dépenses dans le restaurant (ou tous en vue « tous »).
+  const sc = scopeWhere(req);
+  const params = [...sc.params];
   let where = '';
   if (q) {
     // « ! » sert de caractère d'échappement pour % et _ saisis par l'admin.
@@ -851,7 +879,7 @@ app.get('/api/admin/users', requireManager, h((req, res) => {
         `SELECT u.id, u.name, u.phone, u.email, u.role, u.address, u.created_at, u.active,
                 COUNT(o.id) AS orders_count,
                 COALESCE(SUM(CASE WHEN o.status = 'delivered' AND o.payment_status != 'refunded' THEN o.total END), 0) AS total_spent
-         FROM users u LEFT JOIN orders o ON o.user_id = u.id AND o.source = 'app'
+         FROM users u LEFT JOIN orders o ON o.user_id = u.id AND o.source = 'app' AND ${sc.sql}
          ${where}
          GROUP BY u.id ORDER BY u.created_at DESC, u.id DESC LIMIT 200`,
       )
@@ -892,7 +920,10 @@ app.put('/api/admin/settings', requireManager, h((req, res) => {
     if (r.error) throw httpError(400, r.error);
     openingHours = r.value;
   }
-  const upsert = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
+  const restaurantId = rid(req);
+  const upsertStmt = db.prepare(`INSERT INTO restaurant_settings (restaurant_id, key, value) VALUES (?, ?, ?)
+                                  ON CONFLICT(restaurant_id, key) DO UPDATE SET value = excluded.value`);
+  const upsert = { run: (key, value) => upsertStmt.run(restaurantId, key, value) };
   const changed = {};
   // Position du restaurant : les deux coordonnées ensemble (ou aucune), null pour effacer.
   const hasLat = req.body?.restaurant_lat !== undefined;
@@ -916,7 +947,7 @@ app.put('/api/admin/settings', requireManager, h((req, res) => {
   transaction(() => {
     if (position !== undefined) {
       if (position === null) {
-        db.prepare("DELETE FROM settings WHERE key IN ('restaurant_lat', 'restaurant_lng')").run();
+        db.prepare("DELETE FROM restaurant_settings WHERE restaurant_id = ? AND key IN ('restaurant_lat', 'restaurant_lng')").run(restaurantId);
       } else {
         upsert.run('restaurant_lat', String(position.lat));
         upsert.run('restaurant_lng', String(position.lng));
@@ -965,11 +996,13 @@ app.put('/api/admin/settings', requireManager, h((req, res) => {
   // payment_fee_percent est validé et enregistré, mais ignoré pour le calcul tant que la commission
   // de l'agrégateur est définie en variable d'environnement (payment_fee_source = 'aggregator').
   // Réponse au même format que GET /api/settings.
-  const s = getSettings();
+  const s = getSettings(restaurantId);
   res.json({
+    restaurant_id: restaurantId,
+    restaurant_name: restaurants.restaurantName(restaurantId),
     ...s,
     ...openingAndFees(s),
-    ...feeSettings(),
+    ...feeSettings(restaurantId),
     payment_mode: payments.paymentInfo().mode,
     payment_provider: payments.paymentInfo().provider,
     max_quantity_per_item: MAX_QUANTITY_PER_ITEM,
@@ -979,46 +1012,63 @@ app.put('/api/admin/settings', requireManager, h((req, res) => {
 
 // ---------- Sécurité & monitoring ----------
 
-app.get('/api/admin/monitoring', requireManager, h((_req, res) => {
-  const count = (sql) => db.prepare(sql).get().n;
-  const { last10, baselinePer10 } = orderRate();
+app.get('/api/admin/monitoring', requireManager, h((req, res) => {
+  const sc = scopeWhere(req, 'restaurant_id');
+  const S = ` AND ${sc.sql}`;
+  const count = (sql, ...params) => db.prepare(sql).get(...params).n;
+  const restaurantId = req.allRestaurants ? null : rid(req);
+  const { last10, baselinePer10 } = orderRate(restaurantId);
+  // Paiements : ceux des commandes du restaurant.
+  const PAY = restaurantId ? ' AND order_id IN (SELECT id FROM orders WHERE restaurant_id = ?)' : '';
+  const payParams = restaurantId ? [restaurantId] : [];
   res.json({
     payment: payments.paymentInfo(),
     http: lastHourMetrics(),
     orders: {
       last10min: last10,
       baselinePer10min: Math.round(baselinePer10 * 10) / 10,
-      lastHour: count(`SELECT COUNT(*) AS n FROM orders WHERE created_at >= datetime('now', '-1 hour')`),
+      lastHour: count(`SELECT COUNT(*) AS n FROM orders WHERE created_at >= datetime('now', '-1 hour')${S}`, ...sc.params),
     },
     payments: {
-      paid24h: count(`SELECT COUNT(*) AS n FROM payments WHERE status = 'paid' AND updated_at >= datetime('now', '-1 day')`),
-      failed24h: count(`SELECT COUNT(*) AS n FROM payments WHERE status = 'failed' AND updated_at >= datetime('now', '-1 day')`),
-      pending: count(`SELECT COUNT(*) AS n FROM orders WHERE payment_status = 'pending' AND status != 'cancelled'`),
+      paid24h: count(`SELECT COUNT(*) AS n FROM payments WHERE status = 'paid' AND updated_at >= datetime('now', '-1 day')${PAY}`, ...payParams),
+      failed24h: count(`SELECT COUNT(*) AS n FROM payments WHERE status = 'failed' AND updated_at >= datetime('now', '-1 day')${PAY}`, ...payParams),
+      pending: count(`SELECT COUNT(*) AS n FROM orders WHERE payment_status = 'pending' AND status != 'cancelled'${S}`, ...sc.params),
     },
     security: {
       loginFailures1h: count(`SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'login_failed' AND created_at >= datetime('now', '-1 hour')`),
       adminLogins24h: count(`SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'admin_login' AND created_at >= datetime('now', '-1 day')`),
     },
-    alerts: db.prepare('SELECT * FROM alerts ORDER BY resolved, created_at DESC LIMIT 50').all(),
+    // Alertes du restaurant et alertes communes (sauvegarde, sécurité...) ; toutes en vue « tous ».
+    alerts: restaurantId
+      ? db.prepare(`SELECT a.*, r.name AS restaurant_name FROM alerts a LEFT JOIN restaurants r ON r.id = a.restaurant_id
+                     WHERE a.restaurant_id = ? OR a.restaurant_id IS NULL ORDER BY a.resolved, a.created_at DESC LIMIT 50`).all(restaurantId)
+      : db.prepare(`SELECT a.*, r.name AS restaurant_name FROM alerts a LEFT JOIN restaurants r ON r.id = a.restaurant_id
+                     ORDER BY a.resolved, a.created_at DESC LIMIT 50`).all(),
   });
 }));
 
 app.post('/api/admin/alerts/:id/resolve', requireManager, h((req, res) => {
-  const info = db.prepare('UPDATE alerts SET resolved = 1 WHERE id = ?').run(Number(req.params.id));
-  if (info.changes === 0) throw httpError(404, 'Alerte introuvable');
-  audit('alert_resolved', { userId: req.user.id, details: { id: Number(req.params.id) }, ip: req.ip });
+  const alert = db.prepare('SELECT id, restaurant_id FROM alerts WHERE id = ?').get(Number(req.params.id));
+  if (!alert) throw httpError(404, 'Alerte introuvable');
+  if (alert.restaurant_id) assertRestaurantAccess(req.user, alert.restaurant_id, 'Alerte introuvable');
+  db.prepare('UPDATE alerts SET resolved = 1 WHERE id = ?').run(alert.id);
+  audit('alert_resolved', { userId: req.user.id, details: { id: alert.id, restaurant_id: alert.restaurant_id }, ip: req.ip });
   res.json({ ok: true });
 }));
 
+// Journal d'audit : celui du restaurant ; propriétaire sans restaurant choisi : tout.
 app.get('/api/admin/audit', requireManager, h((req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 500);
+  const everything = req.user.admin_level === 'owner' && (req.allRestaurants || req.get('x-restaurant-id') === undefined);
+  const where = everything ? '' : 'WHERE a.restaurant_id = ?';
   res.json(
     db
       .prepare(
-        `SELECT a.*, u.name AS user_name FROM audit_logs a LEFT JOIN users u ON u.id = a.user_id
-         ORDER BY a.id DESC LIMIT ?`,
+        `SELECT a.*, u.name AS user_name, r.name AS restaurant_name FROM audit_logs a
+         LEFT JOIN users u ON u.id = a.user_id LEFT JOIN restaurants r ON r.id = a.restaurant_id
+         ${where} ORDER BY a.id DESC LIMIT ?`,
       )
-      .all(limit),
+      .all(...(everything ? [] : [rid(req)]), limit),
   );
 }));
 

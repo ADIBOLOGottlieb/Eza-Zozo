@@ -24,7 +24,8 @@ class CounterScreen extends StatefulWidget {
 }
 
 class _CounterScreenState extends State<CounterScreen> {
-  static const _splitWidth = 760.0;
+  // 700 : sur une tablette en portrait (≈ 719 dp de contenu), produits et ticket côte à côte.
+  static const _splitWidth = 700.0;
 
   List<Product>? _products;
   List<Category> _categories = const [];

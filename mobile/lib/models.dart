@@ -19,6 +19,9 @@ class AppUser {
   final DateTime? termsAcceptedAt; // acceptation des CGU et de la politique de confidentialité
   /// Personnel (role 'admin') : 'owner' (propriétaire) ou 'manager' (gérant) ; null sinon.
   final String? adminLevel;
+  /// Restaurant du gérant ou du livreur ; null pour le propriétaire (tous ses restaurants) et les clients.
+  final int? restaurantId;
+  final String? restaurantName;
 
   AppUser({
     required this.id,
@@ -32,6 +35,8 @@ class AppUser {
     this.phoneVerified = false,
     this.termsAcceptedAt,
     this.adminLevel,
+    this.restaurantId,
+    this.restaurantName,
   });
 
   /// Personnel du restaurant (propriétaire ou gérant) : accès à l'espace de gestion.
@@ -54,6 +59,8 @@ class AppUser {
         phoneVerified: j['phone_verified'] == true || j['phone_verified'] == 1,
         termsAcceptedAt: j['terms_accepted_at'] == null ? null : _parseDate(j['terms_accepted_at']),
         adminLevel: j['admin_level'],
+        restaurantId: j['restaurant_id'] == null ? null : _int(j['restaurant_id']),
+        restaurantName: j['restaurant_name'],
       );
 }
 
@@ -272,6 +279,9 @@ class StaffMember {
   final String adminLevel; // 'owner' ou 'manager'
   final bool active;
   final DateTime createdAt;
+  /// Restaurant du gérant (null pour le propriétaire).
+  final int? restaurantId;
+  final String? restaurantName;
 
   StaffMember({
     required this.id,
@@ -280,6 +290,8 @@ class StaffMember {
     required this.adminLevel,
     this.active = true,
     required this.createdAt,
+    this.restaurantId,
+    this.restaurantName,
   });
 
   bool get isOwner => adminLevel == 'owner';
@@ -291,6 +303,8 @@ class StaffMember {
         adminLevel: j['admin_level'] == 'owner' ? 'owner' : 'manager',
         active: j['active'] != false && j['active'] != 0,
         createdAt: _parseDate(j['created_at']),
+        restaurantId: j['restaurant_id'] == null ? null : _int(j['restaurant_id']),
+        restaurantName: j['restaurant_name'],
       );
 }
 
@@ -565,6 +579,9 @@ class Order {
   /// Zone de livraison retenue (mode de frais 'zone').
   final int? deliveryZoneId;
   final String? deliveryZoneName;
+  /// Restaurant de la commande (nom affiché quand le compte suit plusieurs restaurants).
+  final int? restaurantId;
+  final String? restaurantName;
 
   Order({
     required this.id,
@@ -602,6 +619,8 @@ class Order {
     this.dineIn = false,
     this.deliveryZoneId,
     this.deliveryZoneName,
+    this.restaurantId,
+    this.restaurantName,
   });
 
   /// Vente saisie au comptoir (caisse).
@@ -661,6 +680,8 @@ class Order {
         dineIn: j['dine_in'] == true || j['dine_in'] == 1,
         deliveryZoneId: j['delivery_zone_id'] == null ? null : _int(j['delivery_zone_id']),
         deliveryZoneName: j['delivery_zone_name'],
+        restaurantId: j['restaurant_id'] == null ? null : _int(j['restaurant_id']),
+        restaurantName: j['restaurant_name'],
       );
 }
 
@@ -672,6 +693,7 @@ class Driver {
   final bool active;
   final int activeDeliveries; // en cours
   final int deliveredCount; // total livrées
+  final String? restaurantName; // restaurant du livreur (vue « tous les restaurants »)
 
   Driver({
     required this.id,
@@ -680,6 +702,7 @@ class Driver {
     this.active = true,
     this.activeDeliveries = 0,
     this.deliveredCount = 0,
+    this.restaurantName,
   });
 
   factory Driver.fromJson(Map<String, dynamic> j) => Driver(
@@ -689,10 +712,14 @@ class Driver {
         active: j['active'] == true || j['active'] == 1,
         activeDeliveries: _int(j['active_deliveries']),
         deliveredCount: _int(j['delivered_count']),
+        restaurantName: j['restaurant_name'],
       );
 }
 
 class AppSettings {
+  /// Restaurant de ces réglages (null : ancien serveur, un seul restaurant).
+  final int? restaurantId;
+  final String? restaurantName;
   final int deliveryFee;
   final int minOrder;
   final bool isOpen;
@@ -735,6 +762,8 @@ class AppSettings {
   final String paymentFeesPaidBy;
 
   AppSettings({
+    this.restaurantId,
+    this.restaurantName,
     required this.deliveryFee,
     required this.minOrder,
     required this.isOpen,
@@ -815,6 +844,8 @@ class AppSettings {
       });
     }
     return AppSettings(
+      restaurantId: j['restaurant_id'] == null ? null : _int(j['restaurant_id']),
+      restaurantName: j['restaurant_name'],
       deliveryFee: _int(j['delivery_fee']),
       minOrder: _int(j['min_order']),
       isOpen: j['is_open'] == true,

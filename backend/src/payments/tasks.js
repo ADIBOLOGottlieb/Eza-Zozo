@@ -5,7 +5,7 @@
  *    annulation automatique des commandes mobile money non payées ;
  *  - chaque jour (et peu après le démarrage) : rapprochement avec le prestataire.
  */
-const { db, getSettings } = require('../db');
+const { db, getSettings, listRestaurantIds, withRestaurant } = require('../db');
 const { log } = require('../logger');
 const { audit, raiseAlert } = require('../monitor');
 const providers = require('./providers');
@@ -60,17 +60,24 @@ function alertWaiting() {
   }
 }
 
+/** Annulation automatique, restaurant par restaurant (délai réglé dans chaque restaurant). */
 function autoCancelUnpaid() {
-  const minutes = getSettings().momo_unpaid_cancel_minutes;
+  let n = 0;
+  for (const id of listRestaurantIds()) n += withRestaurant(id, () => autoCancelUnpaidFor(id));
+  return n;
+}
+
+function autoCancelUnpaidFor(restaurantId) {
+  const minutes = getSettings(restaurantId).momo_unpaid_cancel_minutes;
   const orders = db
     .prepare(
-      `SELECT o.id, o.user_id, o.source, o.payment_status, o.total FROM orders o
-       WHERE o.status = 'pending' AND o.payment_method IN (${core.MOBILE_METHODS.map(() => '?').join(',')})
+      `SELECT o.id, o.user_id, o.source, o.payment_status, o.total, o.restaurant_id FROM orders o
+       WHERE o.restaurant_id = ? AND o.status = 'pending' AND o.payment_method IN (${core.MOBILE_METHODS.map(() => '?').join(',')})
          AND o.payment_status IN ('pending', 'failed', 'expired')
          AND o.created_at <= datetime('now', ?)
          AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.order_id = o.id AND p.status = 'pending')`,
     )
-    .all(...core.MOBILE_METHODS, `-${minutes} minutes`);
+    .all(restaurantId, ...core.MOBILE_METHODS, `-${minutes} minutes`);
   for (const o of orders) {
     const info = db
       .prepare(`UPDATE orders SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND status = 'pending'

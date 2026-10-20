@@ -5,10 +5,12 @@ import '../../models.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/cart_provider.dart';
 import '../../services/api.dart';
+import '../../services/restaurant_scope.dart';
 import '../../theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/common.dart';
+import '../../widgets/restaurant_switcher.dart' show ClientRestaurantSelector;
 import 'client_shell.dart';
 import 'opening_hours_banner.dart';
 import 'order_estimate.dart';
@@ -37,12 +39,25 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _load();
+    RestaurantScope.instance.current.addListener(_onRestaurantChanged);
   }
 
   @override
   void dispose() {
+    RestaurantScope.instance.current.removeListener(_onRestaurantChanged);
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  /// Autre restaurant choisi : son menu, ses horaires et ses frais de livraison.
+  void _onRestaurantChanged() {
+    if (!mounted) return;
+    setState(() {
+      _selectedCategory = null;
+      _products = [];
+      _zones = null;
+    });
+    _load(fresh: true);
   }
 
   void _onQueryChanged(String v) {
@@ -156,6 +171,14 @@ class _HomeScreenState extends State<HomeScreen> {
               onClear: _clearQuery,
             ),
           ),
+          // Plusieurs restaurants : celui où le client commande (touché pour en changer).
+          if (RestaurantScope.instance.hasSeveral)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: Align(alignment: Alignment.centerLeft, child: ClientRestaurantSelector()),
+              ),
+            ),
           // « Fermé — ouvre lundi à 10:00 » ou « Ferme à 22:00 » (moins de 30 min).
           if (_settings != null)
             SliverToBoxAdapter(

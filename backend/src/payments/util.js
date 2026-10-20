@@ -1,10 +1,15 @@
 /** Petits utilitaires partagés par le module paiements. */
 
-function httpError(status, message) {
+/** Erreur renvoyée telle quelle au client ; [code] : identifiant stable lu par l'app (ex. restaurant_unavailable). */
+function httpError(status, message, code) {
   const err = new Error(message);
   err.status = status;
+  if (code) err.apiCode = code;
   return err;
 }
+
+/** Corps JSON d'une erreur : message pour une erreur prévue, « Erreur serveur » sinon. */
+const errorBody = (err) => (err.status ? { error: err.message, ...(err.apiCode ? { code: err.apiCode } : {}) } : { error: 'Erreur serveur' });
 
 // Transforme les erreurs levées (sync ou async) en réponses JSON.
 function h(fn) {
@@ -13,7 +18,7 @@ function h(fn) {
       await fn(req, res);
     } catch (err) {
       if (!err.status) require('../logger').log.error('erreur serveur', { path: req.path, error: err.message, stack: err.stack });
-      res.status(err.status || 500).json({ error: err.status ? err.message : 'Erreur serveur' });
+      res.status(err.status || 500).json(errorBody(err));
     }
   };
 }
@@ -65,4 +70,4 @@ function parseJson(s, fallback = {}) {
   }
 }
 
-module.exports = { httpError, h, fcfa, operatorLabel, maskPhone, normalizeMomoPhone, sqlTime, csvCell, parseJson };
+module.exports = { httpError, errorBody, h, fcfa, operatorLabel, maskPhone, normalizeMomoPhone, sqlTime, csvCell, parseJson };

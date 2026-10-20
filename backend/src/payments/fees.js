@@ -64,36 +64,36 @@ function hasAggregator(operator) {
   return providers.byOperator()[operator] !== 'simulation';
 }
 
-/** Taux du réglage admin (repli). */
-function settingsPercent() {
-  return Number(require('../db').getSettings().payment_fee_percent) || 0;
+/** Taux du réglage admin (repli) d'un restaurant (par défaut : celui de la requête en cours). */
+function settingsPercent(restaurantId) {
+  return Number(require('../db').getSettings(restaurantId ?? undefined).payment_fee_percent) || 0;
 }
 
 /**
- * Taux appliqué à un opérateur et sa provenance.
+ * Taux appliqué à un opérateur et sa provenance. [restaurantId] : restaurant dont le réglage sert de repli.
  * @returns {{ percent: number, source: 'aggregator'|'settings' }}
  */
-function feeRateFor(operator) {
+function feeRateFor(operator, restaurantId) {
   if (OPERATORS.includes(operator) && hasAggregator(operator)) {
     const env = envPercent(`PROVIDER_FEE_PERCENT_${operator.toUpperCase()}`) ?? envPercent('PROVIDER_FEE_PERCENT');
     if (env !== null) return { percent: env, source: 'aggregator' };
   }
-  return { percent: settingsPercent(), source: 'settings' };
+  return { percent: settingsPercent(restaurantId), source: 'settings' };
 }
 
 /** Taux (en %) appliqué à un opérateur. */
-const feePercentFor = (operator) => feeRateFor(operator).percent;
+const feePercentFor = (operator, restaurantId) => feeRateFor(operator, restaurantId).percent;
 
 /**
  * Taux de chaque opérateur + provenance globale :
  * 'aggregator' si TOUS les opérateurs ont leur commission en variable d'environnement,
  * sinon 'settings' (le réglage admin s'applique alors aux opérateurs non configurés).
  */
-function feeInfo() {
+function feeInfo(restaurantId) {
   const byOperator = {};
   let allAggregator = true;
   for (const op of OPERATORS) {
-    const r = feeRateFor(op);
+    const r = feeRateFor(op, restaurantId);
     byOperator[op] = r.percent;
     if (r.source !== 'aggregator') allAggregator = false;
   }

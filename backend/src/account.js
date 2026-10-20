@@ -7,7 +7,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const { rateLimit } = require('express-rate-limit');
-const { db, transaction } = require('./db');
+const { db, transaction, defaultRestaurantId } = require('./db');
 const {
   requireAuth, requireManager, signToken, normalizePhone, isValidPhone, isInactive, INACTIVE_MESSAGE, adminLevelOf,
 } = require('./auth');
@@ -114,7 +114,16 @@ function publicUser(u) {
     terms_version: u.terms_version ?? null,
     // Personnel : 'owner' (propriétaire) ou 'manager' (gérant) ; null pour un client ou un livreur.
     admin_level: adminLevelOf(u),
+    // Restaurant du gérant ou du livreur (null pour le propriétaire, qui suit tous ses restaurants, et pour un client).
+    ...staffRestaurant(u),
   };
+}
+
+function staffRestaurant(u) {
+  const staff = u.role === 'driver' || adminLevelOf(u) === 'manager';
+  if (!staff) return { restaurant_id: null, restaurant_name: null };
+  const id = Number(u.restaurant_id ?? defaultRestaurantId());
+  return { restaurant_id: id, restaurant_name: db.prepare('SELECT name FROM restaurants WHERE id = ?').get(id)?.name ?? null };
 }
 
 function mapAddress(a) {

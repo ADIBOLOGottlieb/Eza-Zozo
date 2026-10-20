@@ -1,4 +1,5 @@
 const path = require('path');
+const { AsyncLocalStorage } = require('node:async_hooks');
 const { DatabaseSync } = require('node:sqlite');
 const { parseOpeningHours } = require('./hours');
 
@@ -293,6 +294,106 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_payments_provider_ref ON payments(provider_reference);
 `);
 
+// ---------- Plusieurs restaurants ----------
+// Un propriétaire, plusieurs restaurants. Menu, commandes, zones, réglages, gérants et livreurs appartiennent
+// à un restaurant ; les clients sont communs. Les données d'avant le multi-restaurant vont au restaurant n°1.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS restaurants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- Réglages propres à chaque restaurant (horaires, livraison, position...). La table settings garde les
+  -- clés techniques communes (db_instance_id...).
+  CREATE TABLE IF NOT EXISTS restaurant_settings (
+    restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    PRIMARY KEY (restaurant_id, key)
+  );
+`);
+for (const table of ['orders', 'categories', 'products', 'delivery_zones']) {
+  addColumn(table, 'restaurant_id', 'INTEGER NOT NULL DEFAULT 1');
+}
+// Personnel : restaurant du gérant ou du livreur (NULL pour un client et pour le propriétaire, qui voit tout).
+addColumn('users', 'restaurant_id', 'INTEGER');
+// Alertes et journal d'audit : restaurant concerné (NULL = commun à tous).
+addColumn('alerts', 'restaurant_id', 'INTEGER');
+addColumn('audit_logs', 'restaurant_id', 'INTEGER');
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_orders_restaurant ON orders(restaurant_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_products_restaurant ON products(restaurant_id);
+  CREATE INDEX IF NOT EXISTS idx_categories_restaurant ON categories(restaurant_id);
+  CREATE INDEX IF NOT EXISTS idx_zones_restaurant ON delivery_zones(restaurant_id);
+  CREATE INDEX IF NOT EXISTS idx_alerts_restaurant ON alerts(restaurant_id, resolved);
+  CREATE INDEX IF NOT EXISTS idx_users_restaurant ON users(restaurant_id, role);
+`);
+
+/** Clés de réglages propres à un restaurant (voir getSettings). */
+const RESTAURANT_SETTING_KEYS = [
+  'delivery_fee', 'min_order', 'is_open', 'restaurant_phone', 'restaurant_address', 'payment_fee_percent',
+  'payment_fees_paid_by', 'spike_min_orders', 'spike_factor', 'high_amount_alert', 'momo_unpaid_cancel_minutes',
+  'restaurant_lat', 'restaurant_lng', 'delivery_auto_confirm_hours', 'delivery_fee_mode', 'delivery_fee_per_km',
+  'delivery_free_km', 'delivery_max_km', 'hours_enabled', 'opening_hours',
+];
+
+/**
+ * Premier démarrage en multi-restaurant (ou base restaurée d'une ancienne version) : crée le restaurant n°1
+ * et lui donne les réglages de la table settings. Sans effet si un restaurant existe déjà.
+ */
+function ensureDefaultRestaurant(database = db) {
+  if (database.prepare('SELECT id FROM restaurants LIMIT 1').get()) return false;
+  const name = (process.env.MERCHANT_DISPLAY_NAME || '').trim() || 'Eza Zozo';
+  database.prepare('INSERT INTO restaurants (id, name, position) VALUES (1, ?, 0)').run(name.slice(0, 80));
+  const placeholders = RESTAURANT_SETTING_KEYS.map(() => '?').join(', ');
+  database.prepare(`INSERT OR IGNORE INTO restaurant_settings (restaurant_id, key, value)
+                    SELECT 1, key, value FROM settings WHERE key IN (${placeholders})`).run(...RESTAURANT_SETTING_KEYS);
+  return true;
+}
+ensureDefaultRestaurant();
+
+/** Identifiants de tous les restaurants (tâches planifiées : un restaurant après l'autre). */
+function listRestaurantIds() {
+  return db.prepare('SELECT id FROM restaurants ORDER BY id').all().map((r) => r.id);
+}
+
+/** Restaurant par défaut : le premier actif (ordre d'affichage), sinon le plus ancien. */
+function defaultRestaurantId() {
+  const row = db.prepare('SELECT id FROM restaurants ORDER BY active DESC, position, id LIMIT 1').get();
+  return row ? row.id : 1;
+}
+
+/**
+ * Restaurant de la requête en cours (rempli par le middleware restaurantScope de restaurants.js, ou par
+ * les tâches planifiées qui traitent un restaurant après l'autre). store.restaurantId = null : le
+ * propriétaire regarde tous ses restaurants à la fois.
+ */
+const restaurantContext = new AsyncLocalStorage();
+
+/** Restaurant du contexte, ou le restaurant par défaut (requête sans restaurant, vue « tous »). */
+function currentRestaurantId() {
+  return restaurantContext.getStore()?.restaurantId ?? defaultRestaurantId();
+}
+
+/** Exécute fn dans le contexte d'un restaurant (réglages, alertes et journal d'audit de ce restaurant). */
+function withRestaurant(restaurantId, fn) {
+  return restaurantContext.run({ restaurantId: Number(restaurantId) || defaultRestaurantId() }, fn);
+}
+
+/** Bascule la suite de la requête sur le restaurant d'une commande (le propriétaire agit sur tous). */
+function enterRestaurant(restaurantId) {
+  if (restaurantId) restaurantContext.enterWith({ ...(restaurantContext.getStore() || {}), restaurantId: Number(restaurantId) });
+}
+
+/** Enregistre un réglage d'un restaurant. */
+function setRestaurantSetting(restaurantId, key, value) {
+  db.prepare(`INSERT INTO restaurant_settings (restaurant_id, key, value) VALUES (?, ?, ?)
+              ON CONFLICT(restaurant_id, key) DO UPDATE SET value = excluded.value`).run(Number(restaurantId), key, String(value));
+}
+
 function transaction(fn) {
   db.exec('BEGIN');
   try {
@@ -311,8 +412,9 @@ function optionalNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-function getSettings() {
-  const rows = db.prepare('SELECT key, value FROM settings').all();
+/** Réglages d'un restaurant (par défaut : celui de la requête en cours). */
+function getSettings(restaurantId = currentRestaurantId()) {
+  const rows = db.prepare('SELECT key, value FROM restaurant_settings WHERE restaurant_id = ?').all(Number(restaurantId));
   const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   return {
     delivery_fee: Number(s.delivery_fee ?? 1000),
@@ -349,4 +451,7 @@ function getSettings() {
   };
 }
 
-module.exports = { db, transaction, getSettings, migrateUsersRole };
+module.exports = {
+  db, transaction, getSettings, migrateUsersRole, RESTAURANT_SETTING_KEYS, ensureDefaultRestaurant, defaultRestaurantId,
+  restaurantContext, currentRestaurantId, withRestaurant, enterRestaurant, setRestaurantSetting, listRestaurantIds,
+};

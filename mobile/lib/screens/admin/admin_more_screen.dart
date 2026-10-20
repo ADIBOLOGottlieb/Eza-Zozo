@@ -10,12 +10,14 @@ import '../../services/admin_api.dart';
 import '../../services/api.dart';
 import '../../services/auth_api.dart';
 import '../../services/delivery_api.dart';
+import '../../services/restaurant_scope.dart';
 import '../../theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/common.dart';
 import '../client/gps_picker_screen.dart';
 import '../client/profile_screen.dart';
 import '../legal/legal_screen.dart' show appVersion;
+import '../owner/restaurants_screen.dart';
 import 'admin_layout.dart';
 import 'collections_screen.dart';
 import 'delivery_zones_screen.dart';
@@ -81,7 +83,14 @@ class _AdminMoreScreenState extends State<AdminMoreScreen> {
         child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         children: [
-          section('Restaurant'),
+          if (owner) ...[
+            section('Mes restaurants'),
+            Card(
+              child: tile(Icons.add_business_rounded, 'Gérer mes restaurants', const RestaurantsScreen(),
+                  subtitle: 'Ajouter un restaurant, le renommer, le fermer ou le rouvrir'),
+            ),
+          ],
+          section(owner ? 'Restaurant suivi : ${RestaurantScope.instance.label}' : 'Restaurant'),
           Card(
             child: Column(
               children: [

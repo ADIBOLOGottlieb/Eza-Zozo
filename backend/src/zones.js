@@ -9,10 +9,11 @@
  *  - DELETE /api/admin/delivery-zones/:id  (gérant)  zone déjà utilisée par une commande = désactivation
  */
 const express = require('express');
-const { db } = require('./db');
+const { db, currentRestaurantId } = require('./db');
 const { requireManager } = require('./auth');
 const { audit } = require('./monitor');
 const { h, httpError } = require('./payments/util');
+const { rid } = require('./restaurants');
 
 const ORDER_BY = 'ORDER BY position, name COLLATE NOCASE, id';
 
@@ -31,11 +32,13 @@ function presentZone(z) {
   };
 }
 
-const getZone = (id) => db.prepare('SELECT * FROM delivery_zones WHERE id = ?').get(Number(id));
+/** Zone d'un restaurant (null si elle appartient à un autre restaurant). */
+const getZone = (id, restaurantId) => db
+  .prepare('SELECT * FROM delivery_zones WHERE id = ? AND restaurant_id = ?').get(Number(id), Number(restaurantId));
 
-/** Zones actives (pour le devis et la commande). */
-function activeZones() {
-  return db.prepare(`SELECT * FROM delivery_zones WHERE active = 1 ${ORDER_BY}`).all().map(presentZone);
+/** Zones actives d'un restaurant (pour le devis et la commande). */
+function activeZones(restaurantId = currentRestaurantId()) {
+  return db.prepare(`SELECT * FROM delivery_zones WHERE active = 1 AND restaurant_id = ? ${ORDER_BY}`).all(Number(restaurantId)).map(presentZone);
 }
 
 const toNum = (v) => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN);
@@ -72,26 +75,27 @@ function createZonesRouter() {
   const router = express.Router();
   const body = (req) => (req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {});
 
-  router.get('/api/delivery/zones', h((_req, res) => {
-    res.json(activeZones());
+  router.get('/api/delivery/zones', h((req, res) => {
+    res.json(activeZones(rid(req)));
   }));
 
-  router.get('/api/admin/delivery-zones', requireManager, h((_req, res) => {
-    res.json(db.prepare(`SELECT * FROM delivery_zones ${ORDER_BY}`).all().map(presentZone));
+  router.get('/api/admin/delivery-zones', requireManager, h((req, res) => {
+    res.json(db.prepare(`SELECT * FROM delivery_zones WHERE restaurant_id = ? ${ORDER_BY}`).all(rid(req)).map(presentZone));
   }));
 
   router.post('/api/admin/delivery-zones', requireManager, h((req, res) => {
     const z = validateZone(body(req));
     const info = db
-      .prepare(`INSERT INTO delivery_zones (name, fee, active, position, center_lat, center_lng, radius_km) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .run(z.name, z.fee, z.active, z.position, ...z.area);
-    const zone = presentZone(getZone(info.lastInsertRowid));
+      .prepare(`INSERT INTO delivery_zones (name, fee, active, position, center_lat, center_lng, radius_km, restaurant_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(z.name, z.fee, z.active, z.position, ...z.area, rid(req));
+    const zone = presentZone(getZone(info.lastInsertRowid, rid(req)));
     audit('delivery_zone_created', { userId: req.user.id, details: zone, ip: req.ip });
     res.status(201).json(zone);
   }));
 
   router.put('/api/admin/delivery-zones/:id', requireManager, h((req, res) => {
-    const before = getZone(req.params.id);
+    const before = getZone(req.params.id, rid(req));
     if (!before) throw httpError(404, 'Zone introuvable');
     const b = body(req);
     // Le cercle est remplacé seulement si l'un de ses champs est envoyé.
@@ -104,20 +108,20 @@ function createZonesRouter() {
     const z = validateZone(merged);
     db.prepare(`UPDATE delivery_zones SET name = ?, fee = ?, active = ?, position = ?, center_lat = ?, center_lng = ?, radius_km = ?
                 WHERE id = ?`).run(z.name, z.fee, z.active, z.position, ...z.area, before.id);
-    const zone = presentZone(getZone(before.id));
+    const zone = presentZone(getZone(before.id, rid(req)));
     audit('delivery_zone_updated', { userId: req.user.id, details: { before: presentZone(before), after: zone }, ip: req.ip });
     res.json(zone);
   }));
 
   router.delete('/api/admin/delivery-zones/:id', requireManager, h((req, res) => {
-    const zone = getZone(req.params.id);
+    const zone = getZone(req.params.id, rid(req));
     if (!zone) throw httpError(404, 'Zone introuvable');
     const used = db.prepare('SELECT 1 FROM orders WHERE delivery_zone_id = ? LIMIT 1').get(zone.id);
     if (used) {
       // Zone présente dans l'historique des commandes : désactivée, pas supprimée.
       db.prepare('UPDATE delivery_zones SET active = 0 WHERE id = ?').run(zone.id);
       audit('delivery_zone_deactivated', { userId: req.user.id, details: { id: zone.id, name: zone.name }, ip: req.ip });
-      return res.json({ deleted: false, deactivated: true, zone: presentZone(getZone(zone.id)) });
+      return res.json({ deleted: false, deactivated: true, zone: presentZone(getZone(zone.id, rid(req))) });
     }
     db.prepare('DELETE FROM delivery_zones WHERE id = ?').run(zone.id);
     audit('delivery_zone_deleted', { userId: req.user.id, details: { id: zone.id, name: zone.name }, ip: req.ip });

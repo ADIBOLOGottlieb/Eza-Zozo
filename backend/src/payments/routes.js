@@ -10,7 +10,19 @@ const providers = require('./providers');
 const core = require('./core');
 const fees = require('./fees');
 const tasks = require('./tasks');
-const { h, maskPhone, csvCell } = require('./util');
+const { h, maskPhone, csvCell, httpError } = require('./util');
+const { rid, assertRestaurantAccess } = require('../restaurants');
+
+/** Restaurant des listes admin : null en vue « tous les restaurants » (propriétaire). */
+const listScope = (req) => (req.allRestaurants ? null : rid(req));
+
+/** Le paiement doit appartenir à une commande d'un restaurant du compte. */
+function assertPaymentAccess(req, paymentId) {
+  const p = core.getPayment(paymentId);
+  const order = p && core.getOrderRow(p.order_id);
+  if (!order) throw httpError(404, 'Paiement introuvable');
+  assertRestaurantAccess(req.user, order.restaurant_id, 'Paiement introuvable');
+}
 
 const DISPLAY_NAME = process.env.MERCHANT_DISPLAY_NAME || 'Eza Zozo';
 
@@ -73,11 +85,12 @@ function createApiRouter({ presentOrder, loadOrder }) {
 
   // ---------- Admin ----------
 
-  router.get('/api/admin/payments/review', requireManager, h((_req, res) => {
-    res.json(core.reviewQueue());
+  router.get('/api/admin/payments/review', requireManager, h((req, res) => {
+    res.json(core.reviewQueue(listScope(req)));
   }));
 
   router.post('/api/admin/payments/:id/validate', requireManager, h((req, res) => {
+    assertPaymentAccess(req, req.params.id);
     const result = core.validateManual(Number(req.params.id), {
       reference: req.body?.reference, amount: req.body?.amount, agentId: req.user.id, ip: req.ip,
     });
@@ -85,13 +98,14 @@ function createApiRouter({ presentOrder, loadOrder }) {
   }));
 
   router.post('/api/admin/payments/:id/reject', requireManager, h((req, res) => {
+    assertPaymentAccess(req, req.params.id);
     const result = core.rejectPayment(Number(req.params.id), { reason: req.body?.reason, agentId: req.user.id, ip: req.ip });
     res.json(pair(result, req.user));
   }));
 
-  router.get('/api/admin/payments/merchant', requireManager, h((_req, res) => {
+  router.get('/api/admin/payments/merchant', requireManager, h((req, res) => {
     const name = providers.mainName();
-    const fee = fees.feeInfo();
+    const fee = fees.feeInfo(req.allRestaurants ? undefined : rid(req));
     res.json({
       provider: name,
       providers: providers.byOperator(),
@@ -107,7 +121,7 @@ function createApiRouter({ presentOrder, loadOrder }) {
   }));
 
   router.get('/api/admin/payments/recent', requireManager, h((req, res) => {
-    res.json(core.recentPaid(req.query.since_id));
+    res.json(core.recentPaid(req.query.since_id, listScope(req)));
   }));
 
   // Rapprochement à la demande (le même tourne chaque jour automatiquement).
@@ -116,22 +130,22 @@ function createApiRouter({ presentOrder, loadOrder }) {
   }));
 
   router.get('/api/admin/collections', requireManager, h((req, res) => {
-    res.json(core.collections(req.query));
+    res.json(core.collections(req.query, listScope(req)));
   }));
 
   router.get('/api/admin/collections/export.csv', requireManager, h((req, res) => {
-    const { payments, totals } = core.collections(req.query);
-    const header = ['Paiement', 'Commande', 'Date paiement (UTC)', 'Opérateur', 'Prestataire', 'Client', 'Brut (FCFA)',
+    const { payments, totals } = core.collections(req.query, listScope(req));
+    const header = ['Paiement', 'Commande', 'Restaurant', 'Date paiement (UTC)', 'Opérateur', 'Prestataire', 'Client', 'Brut (FCFA)',
       'Frais (FCFA)', 'Net (FCFA)', 'Référence opérateur', 'Reversement', 'Référence virement', 'Date reversement', 'Remboursement'];
     const lines = [header.map(csvCell).join(';')];
     for (const p of payments) {
       lines.push([
-        p.id, p.order_id, p.paid_at, p.operator, p.provider, p.customer_name, p.gross, p.provider_fee, p.net,
+        p.id, p.order_id, p.restaurant_name, p.paid_at, p.operator, p.provider, p.customer_name, p.gross, p.provider_fee, p.net,
         p.operator_reference, p.settlement_status === 'reverse' ? 'reversé' : 'en attente', p.settlement_reference,
         p.settled_at, p.refund_status === 'refunded' ? `remboursé (${p.refund_reference})` : '',
       ].map(csvCell).join(';'));
     }
-    lines.push(['TOTAL', '', '', '', '', '', totals.gross, totals.fees, totals.net, '', `reversé : ${totals.settled}`, '', '', '']
+    lines.push(['TOTAL', '', '', '', '', '', '', totals.gross, totals.fees, totals.net, '', `reversé : ${totals.settled}`, '', '', '']
       .map(csvCell).join(';'));
     audit('collections_exported', { userId: req.user.id, details: { filters: req.query, count: payments.length, gross: totals.gross }, ip: req.ip });
     const suffix = [req.query.from, req.query.to].filter(Boolean).join('_') || 'tout';
@@ -141,12 +155,18 @@ function createApiRouter({ presentOrder, loadOrder }) {
   }));
 
   router.post('/api/admin/settlements', requireManager, h((req, res) => {
+    // Un gérant ne reverse que les paiements de son restaurant.
+    const ids = req.body?.payment_ids;
+    if (Array.isArray(ids)) for (const id of ids) if (core.getPayment(id)) assertPaymentAccess(req, id);
     res.json(core.recordSettlement({
       paymentIds: req.body?.payment_ids, reference: req.body?.reference, agentId: req.user.id, ip: req.ip,
     }));
   }));
 
   router.post('/api/admin/orders/:id/refund', requireManager, h(async (req, res) => {
+    const target = core.getOrderRow(Number(req.params.id));
+    if (!target) throw httpError(404, 'Commande introuvable');
+    assertRestaurantAccess(req.user, target.restaurant_id, 'Commande introuvable');
     const order = await core.refundOrder(Number(req.params.id), { reference: req.body?.reference, agentId: req.user.id, ip: req.ip });
     res.json(orderJson(order.id, req.user));
   }));

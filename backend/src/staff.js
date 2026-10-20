@@ -9,21 +9,36 @@
 const crypto = require('crypto');
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { db, transaction } = require('./db');
+const { db, transaction, defaultRestaurantId } = require('./db');
 const { requireManager, normalizePhone, isValidPhone, bumpTokenVersion, adminLevelOf } = require('./auth');
 const { audit } = require('./monitor');
 const { h, httpError } = require('./payments/util');
+const { rid, getRestaurantRow } = require('./restaurants');
+
+/** Restaurant d'un gérant (null pour le propriétaire ; compte ancien sans restaurant : restaurant par défaut). */
+const staffRestaurant = (u) => (adminLevelOf(u) === 'owner' ? null : Number(u.restaurant_id ?? defaultRestaurantId()));
+
+/** Restaurant choisi par le propriétaire (body.restaurant_id), sinon celui de la requête. */
+function pickRestaurant(req, raw) {
+  if (raw === undefined || raw === null || raw === '') return rid(req);
+  const r = getRestaurantRow(raw);
+  if (!r) throw httpError(400, 'Restaurant introuvable');
+  return r.id;
+}
 
 const LEVELS = ['manager'];
 const OWNER_PROTECTED = 'Le compte propriétaire ne peut être modifié que par le propriétaire lui-même';
 const OWNER_ONLY = 'Seul le propriétaire peut gérer les comptes gérant';
 
 function staffJson(u) {
+  const restaurantId = staffRestaurant(u);
   return {
     id: u.id,
     name: u.name,
     phone: u.phone,
     admin_level: adminLevelOf(u),
+    restaurant_id: restaurantId,
+    restaurant_name: restaurantId ? getRestaurantRow(restaurantId)?.name ?? null : null,
     active: Number(u.active ?? 1) === 1,
     created_at: u.created_at,
   };
@@ -77,18 +92,24 @@ const isOwner = (user) => user?.admin_level === 'owner';
  */
 function assertCanManage(actor, member) {
   if (member.id === actor.id) return;
+  // Un gérant ne voit pas les gérants des autres restaurants.
+  if (!isOwner(actor) && staffRestaurant(member) !== null && staffRestaurant(member) !== Number(actor.restaurant_id ?? defaultRestaurantId())) {
+    throw httpError(404, 'Membre du personnel introuvable');
+  }
   if (adminLevelOf(member) === 'owner') throw httpError(403, OWNER_PROTECTED);
   if (!isOwner(actor)) throw httpError(403, OWNER_ONLY);
 }
 
 const router = express.Router();
 
-router.get('/api/admin/staff', requireManager, h((_req, res) => {
+// Propriétaire : tout le personnel (un seul restaurant avec l'en-tête X-Restaurant-Id) ; gérant : le sien et le propriétaire.
+router.get('/api/admin/staff', requireManager, h((req, res) => {
   const rows = db
     .prepare(`SELECT * FROM users WHERE role = 'admin' AND deleted_at IS NULL
               ORDER BY CASE admin_level WHEN 'owner' THEN 0 ELSE 1 END, name COLLATE NOCASE, id`)
     .all();
-  res.json(rows.map(staffJson));
+  const only = isOwner(req.user) ? (req.allRestaurants || req.get('x-restaurant-id') === undefined ? null : rid(req)) : rid(req);
+  res.json(rows.filter((u) => only === null || staffRestaurant(u) === null || staffRestaurant(u) === only).map(staffJson));
 }));
 
 router.post('/api/admin/staff', requireManager, h((req, res) => {
@@ -100,11 +121,12 @@ router.post('/api/admin/staff', requireManager, h((req, res) => {
   const level = checkLevel(body.admin_level);
   if (!isOwner(req.user)) throw httpError(403, OWNER_ONLY);
   if (db.prepare('SELECT id FROM users WHERE phone = ?').get(phone)) throw httpError(409, 'Ce numéro est déjà utilisé');
+  const restaurantId = pickRestaurant(req, body.restaurant_id);
   const info = db
-    .prepare(`INSERT INTO users (name, phone, password_hash, role, admin_level, active) VALUES (?, ?, ?, 'admin', ?, 1)`)
-    .run(name, phone, bcrypt.hashSync(body.password, 10), level);
+    .prepare(`INSERT INTO users (name, phone, password_hash, role, admin_level, active, restaurant_id) VALUES (?, ?, ?, 'admin', ?, 1, ?)`)
+    .run(name, phone, bcrypt.hashSync(body.password, 10), level, restaurantId);
   const id = Number(info.lastInsertRowid);
-  audit('staff_created', { userId: req.user.id, details: { staffId: id, name, admin_level: level }, ip: req.ip });
+  audit('staff_created', { userId: req.user.id, details: { staffId: id, name, admin_level: level, restaurant_id: restaurantId }, ip: req.ip });
   res.status(201).json(staffJson(getStaff(id)));
 }));
 
@@ -137,6 +159,16 @@ router.patch('/api/admin/staff/:id', requireManager, h((req, res) => {
     params.push(level);
     changed.admin_level = [currentLevel, level];
   }
+  // Changement de restaurant d'un gérant : propriétaire seulement.
+  if (req.body?.restaurant_id !== undefined && currentLevel !== 'owner') {
+    if (!isOwner(req.user)) throw httpError(403, OWNER_ONLY);
+    const target = pickRestaurant(req, req.body.restaurant_id);
+    if (target !== staffRestaurant(member)) {
+      sets.push('restaurant_id = ?');
+      params.push(target);
+      changed.restaurant_id = target;
+    }
+  }
   if (active !== undefined) {
     if (![true, false, 0, 1].includes(active)) throw httpError(400, 'Valeur invalide pour active');
     if (Number(member.active ?? 1) !== (active ? 1 : 0)) {
@@ -150,7 +182,7 @@ router.patch('/api/admin/staff/:id', requireManager, h((req, res) => {
   if (sets.length) {
     db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).run(...params, member.id);
     // Nouveau mot de passe, niveau changé ou compte désactivé : les sessions ouvertes sont fermées.
-    if (changed.password || changed.admin_level || changed.active === false) bumpTokenVersion(member.id);
+    if (changed.password || changed.admin_level || changed.active === false || changed.restaurant_id) bumpTokenVersion(member.id);
     audit('staff_updated', { userId: req.user.id, details: { staffId: member.id, ...changed }, ip: req.ip });
   }
   res.json(staffJson(getStaff(member.id)));

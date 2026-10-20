@@ -144,7 +144,10 @@ test('serveur : suivi, rôles, paiement, stats, erreurs, frais et horaires', asy
     // Le propriétaire crée des gérants (niveau par défaut : gérant).
     let r = await admin.call('POST', '/api/admin/staff', { name: 'Gérant 1', phone: '91 44 44 44', password: 'gerant1' });
     assert.equal(r.status, 201, JSON.stringify(r.data));
-    assert.deepEqual(Object.keys(r.data).sort(), ['active', 'admin_level', 'created_at', 'id', 'name', 'phone']);
+    assert.deepEqual(Object.keys(r.data).sort(),
+      ['active', 'admin_level', 'created_at', 'id', 'name', 'phone', 'restaurant_id', 'restaurant_name']);
+    // Sans restaurant choisi : le gérant est rattaché au restaurant par défaut.
+    assert.equal(r.data.restaurant_id, 1);
     assert.equal(r.data.admin_level, 'manager');
     assert.equal(r.data.phone, '+22891444444');
     const m1Id = r.data.id;

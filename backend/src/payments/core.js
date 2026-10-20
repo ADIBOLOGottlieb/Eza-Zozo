@@ -23,9 +23,12 @@ const isMobileMoney = (method) => MOBILE_METHODS.includes(method);
 // Délai au-delà duquel une tentative en attente part dans la file « à vérifier ».
 const REVIEW_AFTER_MINUTES = 2;
 
-/** Qui paie la commission de l'agrégateur (réglage payment_fees_paid_by) : 'restaurant' (défaut) ou 'client'. */
-function feesPaidBy() {
-  return require('../db').getSettings().payment_fees_paid_by === 'client' ? 'client' : 'restaurant';
+/**
+ * Qui paie la commission de l'agrégateur (réglage payment_fees_paid_by du restaurant) : 'restaurant' (défaut)
+ * ou 'client'. [restaurantId] absent : restaurant de la requête en cours.
+ */
+function feesPaidBy(restaurantId) {
+  return require('../db').getSettings(restaurantId ?? undefined).payment_fees_paid_by === 'client' ? 'client' : 'restaurant';
 }
 
 /**
@@ -37,18 +40,23 @@ function feesPaidBy() {
  *  - 'restaurant' : aucun frais pour le client (fee = 0), le restaurant absorbe la commission.
  * @returns {{ fee: number, percent: number|null }}
  */
-function paymentFeeDetails(amount, method) {
+function paymentFeeDetails(amount, method, restaurantId) {
   if (!isMobileMoney(method)) return { fee: 0, percent: null };
-  const percent = fees.feePercentFor(method);
-  if (feesPaidBy() !== 'client') return { fee: 0, percent };
+  const percent = fees.feePercentFor(method, restaurantId);
+  if (feesPaidBy(restaurantId) !== 'client') return { fee: 0, percent };
   return { fee: fees.customerFee(amount, percent), percent };
 }
-const paymentFee = (amount, method) => paymentFeeDetails(amount, method).fee;
+const paymentFee = (amount, method, restaurantId) => paymentFeeDetails(amount, method, restaurantId).fee;
 
 /** Taux figé sur la commande à sa création (anciennes commandes : taux actuel de l'opérateur). */
 function orderFeePercent(order) {
   const stored = order?.payment_fee_percent;
-  return stored === null || stored === undefined ? fees.feePercentFor(order?.payment_method) : Number(stored);
+  return stored === null || stored === undefined ? fees.feePercentFor(order?.payment_method, order?.restaurant_id) : Number(stored);
+}
+
+/** Filtre facultatif sur le restaurant de la commande (alias o) : { sql: ' AND ...', params }. */
+function restaurantFilter(restaurantId) {
+  return restaurantId ? { sql: ' AND o.restaurant_id = ?', params: [Number(restaurantId)] } : { sql: '', params: [] };
 }
 
 const getPayment = (id) => db.prepare('SELECT * FROM payments WHERE id = ?').get(Number(id));
@@ -280,8 +288,10 @@ async function refreshAttempt(p, { force = false } = {}) {
   return applyCheck(p.id, r || { status: 'pending' });
 }
 
+/** Le client de la commande, le propriétaire, ou un gérant du restaurant de la commande. */
 function assertOwner(order, user) {
-  if (!order || (order.user_id !== user.id && user.role !== 'admin')) throw httpError(404, 'Commande introuvable');
+  const staff = user.role === 'admin' && require('../restaurants').canAccessRestaurant(user, order?.restaurant_id);
+  if (!order || (order.user_id !== user.id && !staff)) throw httpError(404, 'Commande introuvable');
 }
 
 /** Crée une tentative « pending » (montant = order.total) avec un identifiant unique. */
@@ -412,21 +422,24 @@ function cancelPendingAttempts(orderId, message = 'Commande annulée') {
 // Admin : file « à vérifier », validation / refus manuels, remboursement
 // ---------------------------------------------------------------------------
 
-function reviewQueue() {
+/** Paiements à vérifier ; [restaurantId] : un restaurant (absent = tous). */
+function reviewQueue(restaurantId = null) {
+  const f = restaurantFilter(restaurantId);
   return db
     .prepare(
-      `SELECT p.*, o.total AS order_total, CASE WHEN o.source = 'counter' THEN COALESCE(o.customer_label, 'Comptoir') ELSE u.name END AS customer_name,
+      `SELECT p.*, o.total AS order_total, o.restaurant_id, CASE WHEN o.source = 'counter' THEN COALESCE(o.customer_label, 'Comptoir') ELSE u.name END AS customer_name,
               CAST((julianday('now') - julianday(p.created_at)) * 1440 AS INTEGER) AS waiting_minutes
        FROM payments p JOIN orders o ON o.id = p.order_id JOIN users u ON u.id = o.user_id
-       WHERE p.needs_review = 1
+       WHERE (p.needs_review = 1
           OR (p.status = 'pending' AND p.created_at <= datetime('now', ?)
-              AND o.payment_status NOT IN ('paid', 'refunded') AND o.status != 'cancelled')
+              AND o.payment_status NOT IN ('paid', 'refunded') AND o.status != 'cancelled'))${f.sql}
        ORDER BY p.created_at ASC LIMIT 200`,
     )
-    .all(`-${REVIEW_AFTER_MINUTES} minutes`)
+    .all(`-${REVIEW_AFTER_MINUTES} minutes`, ...f.params)
     .map((p) => ({
       ...presentPayment(p),
       order_id: p.order_id,
+      restaurant_id: p.restaurant_id,
       customer_name: p.customer_name,
       order_total: p.order_total,
       waiting_minutes: p.waiting_minutes,
@@ -514,9 +527,14 @@ async function refundOrder(orderId, { reference, agentId, ip }) {
 // Encaissements et reversements
 // ---------------------------------------------------------------------------
 
-function collectionFilters(q = {}) {
+/** Filtres des encaissements ; [restaurantId] : un restaurant (absent = tous). */
+function collectionFilters(q = {}, restaurantId = null) {
   const where = [`p.status = 'paid'`];
   const params = [];
+  if (restaurantId) {
+    where.push('p.order_id IN (SELECT id FROM orders WHERE restaurant_id = ?)');
+    params.push(Number(restaurantId));
+  }
   const day = /^\d{4}-\d{2}-\d{2}$/;
   if (q.from) {
     if (!day.test(q.from)) throw httpError(400, 'Date de début invalide (AAAA-MM-JJ)');
@@ -541,8 +559,8 @@ function collectionFilters(q = {}) {
   return { sql: `WHERE ${where.join(' AND ')}`, params };
 }
 
-function collections(q) {
-  const f = collectionFilters(q);
+function collections(q, restaurantId = null) {
+  const f = collectionFilters(q, restaurantId);
   const sums = `COALESCE(SUM(p.gross_amount), 0) AS gross, COALESCE(SUM(p.provider_fee), 0) AS fees,
     COALESCE(SUM(p.net_amount), 0) AS net,
     COALESCE(SUM(CASE WHEN p.settlement_status = 'reverse' THEN p.net_amount END), 0) AS settled,
@@ -557,8 +575,10 @@ function collections(q) {
     .prepare(
       `SELECT p.id, p.order_id, p.operator, p.provider, p.gross_amount AS gross, p.provider_fee, p.net_amount AS net,
               p.operator_reference, p.settlement_status, p.settlement_reference, p.settled_at, p.paid_at,
-              p.refund_status, p.refund_reference, p.validated_by, CASE WHEN o.source = 'counter' THEN COALESCE(o.customer_label, 'Comptoir') ELSE u.name END AS customer_name
+              p.refund_status, p.refund_reference, p.validated_by, CASE WHEN o.source = 'counter' THEN COALESCE(o.customer_label, 'Comptoir') ELSE u.name END AS customer_name,
+              o.restaurant_id, r.name AS restaurant_name
        FROM payments p JOIN orders o ON o.id = p.order_id JOIN users u ON u.id = o.user_id
+       LEFT JOIN restaurants r ON r.id = o.restaurant_id
        ${f.sql} ORDER BY p.paid_at DESC, p.id DESC LIMIT 2000`,
     )
     .all(...f.params);
@@ -591,18 +611,22 @@ function recordSettlement({ paymentIds, reference, agentId, ip }) {
   return { updated };
 }
 
-function recentPaid(sinceId) {
+/** Derniers paiements reçus ; [restaurantId] : un restaurant (absent = tous). */
+function recentPaid(sinceId, restaurantId = null) {
   const since = Number(sinceId);
+  const f = restaurantId
+    ? { sql: ' AND order_id IN (SELECT id FROM orders WHERE restaurant_id = ?)', params: [Number(restaurantId)] }
+    : { sql: '', params: [] };
   if (Number.isInteger(since) && since >= 0 && sinceId !== undefined) {
     return db
       .prepare(`SELECT id, order_id, gross_amount AS amount, operator, paid_at FROM payments
-                WHERE status = 'paid' AND id > ? ORDER BY id ASC LIMIT 50`)
-      .all(since);
+                WHERE status = 'paid' AND id > ?${f.sql} ORDER BY id ASC LIMIT 50`)
+      .all(since, ...f.params);
   }
   return db
     .prepare(`SELECT id, order_id, gross_amount AS amount, operator, paid_at FROM payments
-              WHERE status = 'paid' ORDER BY id DESC LIMIT 20`)
-    .all()
+              WHERE status = 'paid'${f.sql} ORDER BY id DESC LIMIT 20`)
+    .all(...f.params)
     .reverse();
 }
 

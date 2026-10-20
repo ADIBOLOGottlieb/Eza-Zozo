@@ -5,7 +5,7 @@ Application mobile (Android / iOS) de commande pour le restaurant **Eza Zozo** (
 - **Client** : commande, envoie sa position et suit sa commande en direct.
 - **Gérant** : reçoit les commandes, donne leur statut, attribue les livreurs, tient la caisse et gère le restaurant.
 - **Livreur** : prend une livraison et suit la position envoyée par le client.
-- **Propriétaire** : la main sur toutes les fonctionnalités, y compris la gestion des gérants.
+- **Propriétaire** : la main sur toutes les fonctionnalités, y compris la gestion des gérants, et **tous ses restaurants** depuis un PC (navigateur), une tablette ou un smartphone (voir « Plusieurs restaurants »).
 
 Pas de compte « cuisine » : un ancien compte cuisine est désactivé au démarrage du serveur (le propriétaire peut le supprimer ou le réactiver comme gérant).
 
@@ -45,6 +45,24 @@ mobile/    Application Flutter (client, livreur, gérant, propriétaire), icône
 - Remboursement d'une commande payée puis annulée
 - Paramètres : ouvert/fermé, livraison, minimum, frais de paiement, délai d'annulation des commandes mobile money non payées, compte marchand (numéros masqués)
 - Sécurité : journal d'audit de toutes les actions sur l'argent, alertes (pics, paiements en attente, écarts de rapprochement)
+
+## Plusieurs restaurants
+
+Un propriétaire peut avoir plusieurs restaurants. Chacun a **son menu, ses horaires, ses frais et zones de livraison, sa position, ses gérants et ses livreurs** ; les clients sont communs et choisissent où commander.
+
+- **Propriétaire** (PC, smartphone, tablette) : barre « Restaurant suivi » en haut de l'espace de gestion.
+  - **Tous les restaurants** : écran *Mes restaurants* (chiffre d'affaires du jour comparé au même jour de la semaine dernière, commandes en attente / en cuisine / prêtes / en livraison, paiements à vérifier, alertes, ouvert ou fermé, 7 derniers jours ; actualisé toutes les 30 s), commandes, rapports (avec la part de chaque restaurant) et encaissements de tous les restaurants.
+  - **Un restaurant** : son tableau de bord, ses commandes, sa caisse, son menu et ses paramètres.
+  - **Plus → Gérer mes restaurants** : ajouter un restaurant (menu vide ou **copie du menu** d'un autre), le renommer, le fermer ou le rouvrir. **Plus → Gérants** : chaque gérant est rattaché à un restaurant.
+- **Gérant** (tablette) : ne voit et ne gère que **son** restaurant. Sur tablette (dès 600 dp de large, portrait compris) : barre de navigation latérale, liste des commandes et détail côte à côte, caisse avec le ticket à côté des produits.
+- **Livreur** : ne voit que les livraisons de son restaurant.
+- **Client** : choisit le restaurant sur l'accueil (seulement s'il y en a plusieurs) ; changer de restaurant vide le panier.
+
+Côté API, le restaurant visé passe par l'en-tête `X-Restaurant-Id` (ou `?restaurant_id=`) : `all` pour la vue « tous » du propriétaire (lecture seule). Un gérant ou un livreur est toujours limité à son restaurant, quel que soit l'en-tête. Sans en-tête, l'API se comporte comme avant (restaurant par défaut) : les anciennes versions de l'app continuent de fonctionner. À la mise à jour du serveur, les données existantes deviennent le **restaurant n°1** (nom : `MERCHANT_DISPLAY_NAME`, sinon « Eza Zozo »).
+
+## Version web (PC)
+
+`flutter build web --release --dart-define=API_URL=https://eza-zozo-api-5fib.onrender.com` produit le site dans `mobile/build/web`. La CI le publie sur **GitHub Pages** (`.github/workflows/build-web.yml`) : une fois, *Settings → Pages → Source : GitHub Actions* ; adresse `https://<compte>.github.io/<dépôt>/`. Le propriétaire l'ouvre dans Chrome ou Edge (et peut l'« installer » comme une application). Les notifications push et le partage de position Google Maps restent propres aux applications Android / iOS.
 
 ## 1. Lancer le backend
 
@@ -288,6 +306,8 @@ Le même code Flutter produit les deux applications. Les builds se font sur les 
 | PATCH | `/api/admin/orders/:id/status` (pas de cuisine avant paiement mobile money) | admin |
 | POST/PUT/DELETE | `/api/admin/products[/:id]` (`pack_items: [{product_id, quantity}]` pour un pack), `/api/admin/categories[/:id]` · POST `/api/admin/upload` · PUT `/api/admin/settings` | admin |
 | POST | `/api/payments/paygate/webhook`, `/api/payments/kadev/webhook` | prestataires |
+| GET | `/api/restaurants` (restaurants qui prennent des commandes) | public |
+| GET/POST/PATCH | `/api/owner/restaurants[/:id]` (`copy_menu_from` à la création) · GET `/api/owner/overview` (chiffres du jour de chaque restaurant + totaux) | propriétaire |
 
 « admin » = tout le personnel ; « gérant » = niveau Gérant seulement. Réservés au gérant : statistiques, rapports, zones de livraison, réglages, menu (création/modification), clients, paiements, encaissements, remboursements, surveillance, audit, mots de passe oubliés, personnel, erreurs.
 

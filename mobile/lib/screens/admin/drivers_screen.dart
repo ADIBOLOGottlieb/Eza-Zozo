@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../models.dart';
 import '../../services/delivery_api.dart';
+import '../../services/restaurant_scope.dart';
 import '../../theme.dart';
 import '../../widgets/common.dart';
 
@@ -204,6 +205,8 @@ class _DriverTile extends StatelessWidget {
                   d.activeDeliveries > 0 ? Colors.indigo.shade400 : muted,
                 ),
                 _chip('${d.deliveredCount} livrée${d.deliveredCount > 1 ? 's' : ''}', muted),
+                // Propriétaire, vue « tous les restaurants » : restaurant du livreur.
+                if (RestaurantScope.instance.isAll && d.restaurantName != null) _chip(d.restaurantName!, muted),
               ],
             ),
             const SizedBox(height: 4),

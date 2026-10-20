@@ -1,12 +1,11 @@
 // Appels API de l'espace administrateur : paiements, encaissements, reversements, personnel, erreurs.
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart' show XFile;
 
 import '../config.dart';
 import '../models.dart';
@@ -102,22 +101,26 @@ Future<StaffMember> createStaff({
   required String phone,
   required String password,
   required String adminLevel,
+  int? restaurantId,
 }) async =>
     StaffMember.fromJson(_map(await Api.instance.post('/admin/staff', {
       'name': name,
       'phone': phone,
       'password': password,
       'admin_level': adminLevel,
+      'restaurant_id': ?restaurantId,
     })));
 
 /// Modifie un compte du personnel (champs null non envoyés). Le serveur refuse toute modification du
 /// propriétaire par un autre compte, et la gestion des gérants à un non-propriétaire.
-Future<StaffMember> updateStaff(int id, {String? name, String? password, String? adminLevel, bool? active}) async =>
+Future<StaffMember> updateStaff(int id,
+        {String? name, String? password, String? adminLevel, bool? active, int? restaurantId}) async =>
     StaffMember.fromJson(_map(await Api.instance.patch('/admin/staff/$id', {
       'name': ?name,
       'password': ?password,
       'admin_level': ?adminLevel,
       'active': ?active,
+      'restaurant_id': ?restaurantId,
     })));
 
 /// Supprime un compte du personnel (anonymisé ; ses commandes restent). Propriétaire : gérants et cuisine ;
@@ -275,23 +278,15 @@ Future<void> reorderDeliveryZones(List<DeliveryZone> ordered) async {
   }
 }
 
-/// Écrit le CSV dans le dossier temporaire de l'application (sous-dossier « exports »).
-Future<File> writeCollectionsCsvFile(CollectionsCsv csv) async {
-  try {
-    final tmp = await getTemporaryDirectory();
-    final dir = Directory('${tmp.path}${Platform.pathSeparator}exports');
-    await dir.create(recursive: true);
-    final file = File('${dir.path}${Platform.pathSeparator}${csv.fileName}');
-    return await file.writeAsBytes(csv.bytes, flush: true);
-  } catch (_) {
-    throw ApiException("Impossible d'enregistrer le fichier CSV sur le téléphone.");
-  }
-}
+/// Fichier CSV à partager, créé en mémoire : feuille de partage sur téléphone et tablette,
+/// téléchargement dans le navigateur (PC).
+XFile csvShareFile(CollectionsCsv csv) => XFile.fromData(csv.bytes, mimeType: 'text/csv', name: csv.fileName);
 
 Future<http.Response> _getRaw(Uri uri) async {
   try {
     return await http.get(uri, headers: {
       if (Api.instance.token != null) 'Authorization': 'Bearer ${Api.instance.token}',
+      ...Api.instance.restaurantHeaders,
     }).timeout(const Duration(seconds: 30));
   } on TimeoutException {
     throw ApiException('Le serveur ne répond pas. Vérifiez votre connexion.', null, true);

@@ -7,6 +7,8 @@ import '../services/admin_api.dart' show paymentReviewCount;
 import '../services/api.dart';
 import '../services/auth_api.dart' show passwordResetCount;
 import '../services/push_service.dart';
+import '../services/restaurant_scope.dart';
+import '../services/restaurants_api.dart';
 import '../services/shared_location.dart';
 import 'cart_provider.dart';
 import 'token_store.dart';
@@ -51,6 +53,38 @@ class AuthProvider extends ChangeNotifier {
 
   AuthProvider({this.cart, TokenStore? tokenStore}) : _tokens = tokenStore ?? TokenStore() {
     Api.instance.onUnauthorized = _onUnauthorized;
+    Api.instance.onRestaurantUnavailable = _onRestaurantUnavailable;
+  }
+
+  /// Restaurant suivi selon le compte : propriétaire = tous par défaut (ou son dernier choix), client = le dernier
+  /// restaurant choisi (sinon le premier), gérant et livreur = le leur (rien à choisir). Ne lève jamais.
+  Future<void> _prepareRestaurants(AppUser u) async {
+    final scope = RestaurantScope.instance;
+    try {
+      if (u.isOwner) {
+        await scope.restore('restaurant_scope_owner_${u.id}', fallback: RestaurantScope.all);
+        scope.setRestaurants(await fetchOwnerRestaurants(), fallback: RestaurantScope.all);
+      } else if (u.isAdmin || u.isDriver) {
+        scope.reset();
+      } else {
+        await scope.restore('restaurant_scope_client_${u.id}');
+        final list = await fetchRestaurants();
+        scope.setRestaurants(list, fallback: list.isEmpty ? null : '${list.first.id}');
+        if (scope.restaurantId != null) await cart?.useRestaurant(scope.restaurantId!);
+      }
+    } catch (e) {
+      // Serveur d'avant le multi-restaurant (ou injoignable) : aucun en-tête de restaurant, l'app
+      // fonctionne comme avec un seul restaurant (pas de vue « tous les restaurants »).
+      _log('Restaurants indisponibles : $e');
+      if (scope.restaurants.value.isEmpty) scope.reset();
+    }
+  }
+
+  /// Le restaurant choisi par le client a fermé : on recharge la liste (un autre restaurant est choisi).
+  void _onRestaurantUnavailable() {
+    final u = user;
+    if (u == null || u.isAdmin || u.isDriver) return;
+    unawaited(_prepareRestaurants(u).whenComplete(notifyListeners));
   }
 
   /// Restaure la session enregistrée au démarrage.
@@ -89,6 +123,7 @@ class AuthProvider extends ChangeNotifier {
       final u = await Api.instance.me();
       if (Api.instance.token != token) return; // session changée entre-temps
       _startSession(u, register: true);
+      await _prepareRestaurants(u);
       _log('Session vérifiée');
     } on ApiException catch (e) {
       if (Api.instance.token != token) return;
@@ -180,6 +215,8 @@ class AuthProvider extends ChangeNotifier {
     // Échec du stockage chiffré : session valable jusqu'à la fermeture de l'app.
     if (!await _tokens.save(token)) _log('Jeton non enregistré');
     _startSession(u, register: newSession);
+    // Avant d'afficher l'espace du compte : ses premiers appels visent le bon restaurant.
+    if (newSession) await _prepareRestaurants(u);
     notifyListeners();
   }
 
@@ -260,6 +297,7 @@ class AuthProvider extends ChangeNotifier {
     retrying = false;
     cart?.reset();
     SharedLocationService.instance.reset();
+    RestaurantScope.instance.reset();
     paymentReviewCount.value = 0;
     passwordResetCount.value = 0;
     Api.instance.invalidateCache();

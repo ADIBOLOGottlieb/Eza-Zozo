@@ -139,6 +139,14 @@ const adminLevelOf = (user) => {
  * @returns {{ user: object } | { status: number, body: object }} utilisateur (req.user) ou refus
  */
 function authenticate(req) {
+  // Une seule vérification par requête (le middleware de restaurant puis la route).
+  if (req.authResult) return req.authResult;
+  const result = authenticateUncached(req);
+  if (result.user) req.authResult = result;
+  return result;
+}
+
+function authenticateUncached(req) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return { status: 401, body: { error: 'Non authentifié' } };
@@ -158,7 +166,10 @@ function authenticate(req) {
   // Compte désactivé (livreur, personnel) : la session est refusée immédiatement, sans attendre l'expiration.
   if (isInactive(user)) return { status: 401, body: { error: INACTIVE_MESSAGE, code: 'account_disabled' } };
   // Le rôle et le niveau viennent de la base : un admin rétrogradé perd l'accès sans attendre l'expiration du jeton.
-  return { user: { ...payload, role: user.role, name: user.name, admin_level: adminLevelOf(user) } };
+  // restaurant_id : restaurant du gérant ou du livreur (null pour le propriétaire et les clients).
+  const level = adminLevelOf(user);
+  const restaurantId = (user.role === 'driver' || level === 'manager') && user.restaurant_id ? Number(user.restaurant_id) : null;
+  return { user: { ...payload, role: user.role, name: user.name, admin_level: level, restaurant_id: restaurantId } };
 }
 
 function requireAuth(req, res, next) {
@@ -190,6 +201,16 @@ function requireAdmin(req, res, next) {
 /** Gestion du restaurant (argent, réglages, catalogue, personnel) : propriétaire et gérants. */
 const requireManager = requireAdmin;
 
+/** Propriétaire seulement (tous les restaurants : création, vue d'ensemble). */
+function requireOwner(req, res, next) {
+  requireAuth(req, res, () => {
+    if (req.user.role !== 'admin' || req.user.admin_level !== 'owner') {
+      return res.status(403).json({ error: 'Accès réservé au propriétaire' });
+    }
+    next();
+  });
+}
+
 /** Espace livreur : rôle 'driver' actif (vérifié par requireAuth) ; l'administrateur y a aussi accès. */
 function requireDriver(req, res, next) {
   requireAuth(req, res, () => {
@@ -206,6 +227,8 @@ module.exports = {
   requireAdmin,
   requireManager,
   requireDriver,
+  requireOwner,
+  authenticate,
   optionalAuth,
   adminLevelOf,
   isInactive,

@@ -225,7 +225,8 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   }
 
   /// Largeur (zone de contenu) à partir de laquelle la liste et le détail s'affichent côte à côte.
-  static const _splitWidth = 720.0;
+  /// 680 : une tablette en portrait (800 dp moins la barre latérale ≈ 719) a les deux volets.
+  static const _splitWidth = 680.0;
 
   Widget _detailPane(List<Order>? orders) {
     final id = _selectedId;

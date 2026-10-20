@@ -11,6 +11,10 @@
 const express = require('express');
 const { db } = require('./db');
 const { requireManager } = require('./auth');
+const { rid } = require('./restaurants');
+
+/** Restaurant du rapport : null en vue « tous les restaurants » (propriétaire). */
+const reportScope = (req) => (req.allRestaurants ? null : rid(req));
 const { audit } = require('./monitor');
 const { h, httpError, csvCell } = require('./payments/util');
 
@@ -67,26 +71,29 @@ function fillBuckets(rows, field, keys) {
   });
 }
 
-function buildReport(period) {
+/** Synthèse d'une période ; [restaurantId] : un restaurant, null = tous (avec le détail par restaurant). */
+function buildReport(period, restaurantId = null) {
   const { from, to } = period;
-  const p = [from, to];
+  const R = restaurantId ? ' AND o.restaurant_id = ?' : '';
+  const IN = IN_PERIOD + R;
+  const p = [from, to, ...(restaurantId ? [Number(restaurantId)] : [])];
   const totals = db
-    .prepare(`SELECT COUNT(*) AS orders, COALESCE(SUM(o.total), 0) AS revenue FROM orders o WHERE ${IN_PERIOD} AND ${COUNTED}`)
+    .prepare(`SELECT COUNT(*) AS orders, COALESCE(SUM(o.total), 0) AS revenue FROM orders o WHERE ${IN} AND ${COUNTED}`)
     .get(...p);
-  const cancelled = db.prepare(`SELECT COUNT(*) AS n FROM orders o WHERE ${IN_PERIOD} AND o.status = 'cancelled'`).get(...p).n;
+  const cancelled = db.prepare(`SELECT COUNT(*) AS n FROM orders o WHERE ${IN} AND o.status = 'cancelled'`).get(...p).n;
   // Commissions de l'agrégateur : paiements payés des commandes de la période.
   const feeRows = db
     .prepare(
       `SELECT o.payment_method AS k, COALESCE(SUM(pay.provider_fee), 0) AS fees
        FROM payments pay JOIN orders o ON o.id = pay.order_id
-       WHERE pay.status = 'paid' AND ${IN_PERIOD} GROUP BY o.payment_method`,
+       WHERE pay.status = 'paid' AND ${IN} GROUP BY o.payment_method`,
     )
     .all(...p);
   const paymentFees = feeRows.reduce((s, r) => s + int(r.fees), 0);
 
   const group = (expr) => db
     .prepare(`SELECT ${expr} AS k, COUNT(*) AS orders, COALESCE(SUM(o.total), 0) AS revenue
-              FROM orders o WHERE ${IN_PERIOD} AND ${COUNTED} GROUP BY k`)
+              FROM orders o WHERE ${IN} AND ${COUNTED} GROUP BY k`)
     .all(...p);
 
   const byDriver = db
@@ -99,7 +106,7 @@ function buildReport(period) {
        WHERE o.driver_id IS NOT NULL AND o.mode = 'delivery'
          AND (o.status = 'delivered' OR (o.status = 'delivering' AND o.driver_delivered_at IS NOT NULL))
          AND COALESCE(o.driver_delivered_at, o.received_at, o.updated_at) >= ?
-         AND COALESCE(o.driver_delivered_at, o.received_at, o.updated_at) < date(?, '+1 day')
+         AND COALESCE(o.driver_delivered_at, o.received_at, o.updated_at) < date(?, '+1 day')${R}
        GROUP BY o.driver_id ORDER BY deliveries DESC, d.name`,
     )
     .all(...p)
@@ -113,7 +120,7 @@ function buildReport(period) {
 
   const dailyRows = db
     .prepare(`SELECT date(o.created_at) AS day, COUNT(*) AS orders, COALESCE(SUM(o.total), 0) AS revenue
-              FROM orders o WHERE ${IN_PERIOD} AND ${COUNTED} GROUP BY day`)
+              FROM orders o WHERE ${IN} AND ${COUNTED} GROUP BY day`)
     .all(...p);
   const byDay = new Map(dailyRows.map((r) => [r.day, r]));
   const daily = [];
@@ -127,7 +134,7 @@ function buildReport(period) {
     .prepare(
       `SELECT oi.name, SUM(oi.quantity) AS quantity, SUM(oi.quantity * oi.unit_price) AS revenue
        FROM order_items oi JOIN orders o ON o.id = oi.order_id
-       WHERE ${IN_PERIOD} AND ${COUNTED} GROUP BY oi.name ORDER BY quantity DESC, revenue DESC, oi.name LIMIT 10`,
+       WHERE ${IN} AND ${COUNTED} GROUP BY oi.name ORDER BY quantity DESC, revenue DESC, oi.name LIMIT 10`,
     )
     .all(...p)
     .map((r) => ({ name: r.name, quantity: int(r.quantity), revenue: int(r.revenue) }));
@@ -145,6 +152,13 @@ function buildReport(period) {
     by_driver: byDriver,
     daily,
     top_products: topProducts,
+    // Vue « tous les restaurants » : part de chaque restaurant.
+    by_restaurant: restaurantId ? null : db
+      .prepare(`SELECT o.restaurant_id, r.name, COUNT(*) AS orders, COALESCE(SUM(o.total), 0) AS revenue
+                FROM orders o LEFT JOIN restaurants r ON r.id = o.restaurant_id
+                WHERE ${IN} AND ${COUNTED} GROUP BY o.restaurant_id ORDER BY revenue DESC`)
+      .all(...p)
+      .map((r) => ({ restaurant_id: r.restaurant_id, name: r.name, orders: int(r.orders), revenue: int(r.revenue) })),
   };
 }
 
@@ -157,27 +171,32 @@ const STATUS_LABELS = {
   delivered: 'livrée', cancelled: 'annulée',
 };
 const CSV_HEADER = ['id', 'date', 'heure', 'canal', 'mode', 'zone', 'client', 'telephone', 'articles', 'sous_total', 'livraison',
-  'frais_paiement', 'total', 'paiement', 'statut_paiement', 'statut', 'livreur', 'commission_agregateur', 'net_restaurant'];
+  'frais_paiement', 'total', 'paiement', 'statut_paiement', 'statut', 'livreur', 'commission_agregateur', 'net_restaurant',
+  // Ajouté avec le multi-restaurant : en dernier, pour ne pas décaler les colonnes des tableurs existants.
+  'restaurant'];
 
 /** Lignes CSV (une par commande de la période, annulées comprises). */
-function exportRows({ from, to }) {
+function exportRows({ from, to }, restaurantId = null) {
+  const IN = IN_PERIOD + (restaurantId ? ' AND o.restaurant_id = ?' : '');
+  const p = [from, to, ...(restaurantId ? [Number(restaurantId)] : [])];
   const orders = db
     .prepare(
       `SELECT o.*, ${MODE_EXPR} AS shown_mode,
               CASE WHEN o.source = 'counter' THEN COALESCE(o.customer_label, 'Comptoir') ELSE u.name END AS customer_name,
-              d.name AS driver_name,
+              d.name AS driver_name, r.name AS restaurant_name,
               (SELECT COALESCE(SUM(pay.provider_fee), 0) FROM payments pay WHERE pay.order_id = o.id AND pay.status = 'paid') AS commission,
               CASE WHEN ${COUNTED} THEN 1 ELSE 0 END AS counted
        FROM orders o JOIN users u ON u.id = o.user_id LEFT JOIN users d ON d.id = o.driver_id
-       WHERE ${IN_PERIOD} ORDER BY o.created_at, o.id`,
+       LEFT JOIN restaurants r ON r.id = o.restaurant_id
+       WHERE ${IN} ORDER BY o.created_at, o.id`,
     )
-    .all(from, to);
+    .all(...p);
   const items = new Map();
   if (orders.length) {
     for (const it of db
       .prepare(`SELECT oi.order_id, oi.name, oi.quantity FROM order_items oi JOIN orders o ON o.id = oi.order_id
-                WHERE ${IN_PERIOD} ORDER BY oi.id`)
-      .all(from, to)) {
+                WHERE ${IN} ORDER BY oi.id`)
+      .all(...p)) {
       if (!items.has(it.order_id)) items.set(it.order_id, []);
       items.get(it.order_id).push(`${it.quantity}x ${it.name}`);
     }
@@ -205,6 +224,7 @@ function exportRows({ from, to }) {
       commission,
       // Net du restaurant : commande comptée → total − commission de l'agrégateur ; sinon rien d'encaissé.
       o.counted ? int(o.total) - commission : 0,
+      o.restaurant_name || '',
     ];
   });
 }
@@ -213,12 +233,12 @@ function createReportsRouter() {
   const router = express.Router();
 
   router.get('/api/admin/reports', requireManager, h((req, res) => {
-    res.json(buildReport(parsePeriod(req.query)));
+    res.json(buildReport(parsePeriod(req.query), reportScope(req)));
   }));
 
   router.get('/api/admin/reports/export.csv', requireManager, h((req, res) => {
     const period = parsePeriod(req.query);
-    const rows = exportRows(period);
+    const rows = exportRows(period, reportScope(req));
     const lines = [CSV_HEADER.join(';'), ...rows.map((r) => r.map(csvCell).join(';'))];
     audit('report_exported', { userId: req.user.id, details: { from: period.from, to: period.to, count: rows.length }, ip: req.ip });
     res.set('Content-Type', 'text/csv; charset=utf-8');

@@ -10,7 +10,7 @@
  */
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { db, getSettings } = require('./db');
+const { db, getSettings, listRestaurantIds, withRestaurant, defaultRestaurantId } = require('./db');
 const authModule = require('./auth');
 const { requireAuth, requireAdmin, requireManager, requireDriver } = authModule;
 const { log } = require('./logger');
@@ -24,6 +24,10 @@ const normalizePhone = (p) => (typeof authModule.normalizePhone === 'function' ?
 const bumpTokenVersion = (id) => (typeof authModule.bumpTokenVersion === 'function' ? authModule.bumpTokenVersion(id) : undefined);
 const { h, httpError } = require('./payments/util');
 const { isMobileMoney } = require('./payments/core');
+const { rid, assertRestaurantAccess, canAccessRestaurant, getRestaurantRow } = require('./restaurants');
+
+/** Restaurant d'un livreur (compte d'avant le multi-restaurant : restaurant par défaut). */
+const driverRestaurant = (u) => Number(u.restaurant_id ?? defaultRestaurantId());
 
 const PHONE_RE = /^\+?[\d\s]{8,16}$/;
 const SCOPES = ['available', 'mine', 'history'];
@@ -45,10 +49,13 @@ function driverJson(id) {
     )
     .get(id);
   if (!u) return null;
+  const restaurantId = driverRestaurant(u);
   return {
     id: u.id,
     name: u.name,
     phone: u.phone,
+    restaurant_id: restaurantId,
+    restaurant_name: getRestaurantRow(restaurantId)?.name ?? null,
     active: Number(u.active ?? 1) === 1,
     active_deliveries: Number(u.active_deliveries),
     delivered_count: Number(u.delivered_count),
@@ -112,13 +119,20 @@ function getDriverRow(id) {
  * delivery_auto_confirm_hours sans « Reçu » du client. @returns le nombre de commandes passées.
  */
 function autoConfirmDeliveries() {
-  const hours = getSettings().delivery_auto_confirm_hours;
+  let done = 0;
+  for (const id of listRestaurantIds()) done += withRestaurant(id, () => autoConfirmFor(id));
+  return done;
+}
+
+/** Même chose pour un restaurant (délai de ses réglages). */
+function autoConfirmFor(restaurantId) {
+  const hours = getSettings(restaurantId).delivery_auto_confirm_hours;
   const rows = db
     .prepare(
       `SELECT id, user_id, driver_id, driver_delivered_at FROM orders
-       WHERE status = 'delivering' AND driver_delivered_at IS NOT NULL AND driver_delivered_at <= datetime('now', ?)`,
+       WHERE restaurant_id = ? AND status = 'delivering' AND driver_delivered_at IS NOT NULL AND driver_delivered_at <= datetime('now', ?)`,
     )
-    .all(`-${hours} hours`);
+    .all(restaurantId, `-${hours} hours`);
   let done = 0;
   for (const o of rows) {
     const info = db
@@ -201,6 +215,16 @@ function startDeliveryTasks() {
 /**
  * @param {{ loadOrder: Function, loadOrders: Function, presentOrder: Function }} deps fonctions de server.js
  */
+/** Restaurant d'un nouveau livreur : celui du gérant ; le propriétaire peut le choisir (body.restaurant_id). */
+function targetRestaurant(req, body) {
+  if (req.user.admin_level === 'owner' && body.restaurant_id !== undefined && body.restaurant_id !== null) {
+    const r = getRestaurantRow(body.restaurant_id);
+    if (!r) throw httpError(400, 'Restaurant introuvable');
+    return r.id;
+  }
+  return rid(req);
+}
+
 function createDeliveryRouter({ loadOrder, loadOrders, presentOrder }) {
   const router = express.Router();
   const orderJson = (id, viewer) => presentOrder(loadOrder(Number(id)), viewer);
@@ -217,7 +241,8 @@ function createDeliveryRouter({ loadOrder, loadOrders, presentOrder }) {
     if (!SCOPES.includes(scope)) throw httpError(400, 'Liste invalide (available, mine ou history)');
     let rows;
     if (scope === 'available') {
-      rows = loadOrders(`WHERE o.status = 'ready' AND o.mode = 'delivery' AND o.driver_id IS NULL`, [],
+      // Livraisons du restaurant du livreur seulement.
+      rows = loadOrders(`WHERE o.status = 'ready' AND o.mode = 'delivery' AND o.driver_id IS NULL AND o.restaurant_id = ?`, [rid(req)],
         { orderBy: 'o.updated_at ASC, o.id ASC' });
     } else if (scope === 'mine') {
       rows = loadOrders(`WHERE o.status = 'delivering' AND o.driver_id = ?`, [req.user.id],
@@ -235,6 +260,7 @@ function createDeliveryRouter({ loadOrder, loadOrders, presentOrder }) {
       if (order.driver_id === req.user.id && order.status === 'delivering') return res.json(orderJson(order.id, req.user));
       throw httpError(409, 'Cette livraison a déjà été prise par un autre livreur');
     }
+    if (!canAccessRestaurant(req.user, order.restaurant_id)) throw httpError(404, 'Commande introuvable');
     if (order.mode !== 'delivery') throw httpError(400, 'Commande à emporter : pas de livraison');
     if (order.status !== 'ready') throw httpError(400, 'Cette commande n\'est pas prête à être livrée');
     assertPaid(order);
@@ -309,9 +335,11 @@ function createDeliveryRouter({ loadOrder, loadOrders, presentOrder }) {
     if (order.driver_id !== req.user.id) throw httpError(403, 'Cette livraison n\'est pas attribuée à votre compte');
     if (order.status !== 'delivering') throw httpError(400, 'Cette livraison n\'est pas en cours');
     if (order.driver_delivered_at) throw httpError(400, 'Livraison déjà indiquée faite : elle ne peut plus être rendue');
-    db.prepare(`UPDATE orders SET driver_id = NULL, picked_up_at = NULL, status = 'ready', updated_at = datetime('now')
-                WHERE id = ? AND driver_id = ? AND status = 'delivering'`)
+    const info = db.prepare(`UPDATE orders SET driver_id = NULL, picked_up_at = NULL, status = 'ready', updated_at = datetime('now')
+                WHERE id = ? AND driver_id = ? AND status = 'delivering' AND driver_delivered_at IS NULL`)
       .run(order.id, req.user.id);
+    // Changée entre-temps (livreur retiré par le gérant, « Livraison faite »...) : ni audit ni notification en double.
+    if (!info.changes) throw httpError(409, 'La livraison vient de changer : rechargez-la');
     audit('driver_release', { userId: req.user.id, details: { orderId: order.id, driverId: req.user.id }, ip: req.ip });
     if (activeDeliveries(req.user.id) === 0) forgetDriverLocation(req.user.id);
     notify.readyForDrivers(order);
@@ -355,11 +383,13 @@ function createDeliveryRouter({ loadOrder, loadOrders, presentOrder }) {
 
   // ---------- Admin : livreurs ----------
 
-  router.get('/api/admin/drivers', requireAdmin, h((_req, res) => {
+  // Livreurs du restaurant ; vue « tous les restaurants » (propriétaire) : tous les livreurs.
+  router.get('/api/admin/drivers', requireAdmin, h((req, res) => {
+    const restaurantId = req.allRestaurants ? null : rid(req);
     const ids = db
       .prepare(`SELECT * FROM users WHERE role = 'driver' ORDER BY name COLLATE NOCASE, id`)
       .all()
-      .filter((u) => !u.deleted_at)
+      .filter((u) => !u.deleted_at && (restaurantId === null || driverRestaurant(u) === restaurantId))
       .map((u) => u.id);
     const list = ids.map(driverJson);
     list.sort((a, b) => Number(b.active) - Number(a.active));
@@ -375,7 +405,7 @@ function createDeliveryRouter({ loadOrder, loadOrders, presentOrder }) {
       if (!user || user.deleted_at) throw httpError(404, 'Compte introuvable');
       if (user.role === 'driver') throw httpError(409, 'Ce compte est déjà livreur');
       if (user.role !== 'customer') throw httpError(400, 'Un administrateur ne peut pas devenir livreur');
-      db.prepare(`UPDATE users SET role = 'driver', active = 1 WHERE id = ?`).run(user.id);
+      db.prepare(`UPDATE users SET role = 'driver', active = 1, restaurant_id = ? WHERE id = ?`).run(targetRestaurant(req, body), user.id);
       audit('driver_created', { userId: req.user.id, details: { driverId: user.id, from: 'customer' }, ip: req.ip });
       return res.status(201).json(driverJson(user.id));
     }
@@ -387,8 +417,8 @@ function createDeliveryRouter({ loadOrder, loadOrders, presentOrder }) {
     if (!PHONE_RE.test(phone)) throw httpError(400, 'Numéro de téléphone invalide');
     if (db.prepare('SELECT id FROM users WHERE phone = ?').get(phone)) throw httpError(409, 'Ce numéro est déjà utilisé');
     const info = db
-      .prepare(`INSERT INTO users (name, phone, password_hash, role, active) VALUES (?, ?, ?, 'driver', 1)`)
-      .run(name.slice(0, 80), phone, bcrypt.hashSync(password, 10));
+      .prepare(`INSERT INTO users (name, phone, password_hash, role, active, restaurant_id) VALUES (?, ?, ?, 'driver', 1, ?)`)
+      .run(name.slice(0, 80), phone, bcrypt.hashSync(password, 10), targetRestaurant(req, body));
     const id = Number(info.lastInsertRowid);
     audit('driver_created', { userId: req.user.id, details: { driverId: id, name: name.slice(0, 80) }, ip: req.ip });
     res.status(201).json(driverJson(id));
@@ -397,6 +427,7 @@ function createDeliveryRouter({ loadOrder, loadOrders, presentOrder }) {
   router.patch('/api/admin/drivers/:id', requireManager, h((req, res) => {
     const driver = getDriverRow(req.params.id);
     if (!driver) throw httpError(404, 'Livreur introuvable');
+    assertRestaurantAccess(req.user, driverRestaurant(driver), 'Livreur introuvable');
     const { active, name, password } = req.body || {};
     const sets = [];
     const params = [];
@@ -413,6 +444,18 @@ function createDeliveryRouter({ loadOrder, loadOrders, presentOrder }) {
       sets.push('name = ?');
       params.push(n.slice(0, 80));
       changed.name = n.slice(0, 80);
+    }
+    // Le propriétaire peut changer un livreur de restaurant.
+    if (req.body?.restaurant_id !== undefined) {
+      if (req.user.admin_level !== 'owner') throw httpError(403, 'Seul le propriétaire change un livreur de restaurant');
+      const target = getRestaurantRow(req.body.restaurant_id);
+      if (!target) throw httpError(400, 'Restaurant introuvable');
+      if (target.id !== driverRestaurant(driver)) {
+        if (activeDeliveries(driver.id) > 0) throw httpError(400, 'Ce livreur a une livraison en cours : attendez la fin de la livraison');
+        sets.push('restaurant_id = ?');
+        params.push(target.id);
+        changed.restaurant_id = target.id;
+      }
     }
     if (password !== undefined) {
       if (typeof password !== 'string' || password.length < 6) {
@@ -439,6 +482,7 @@ function createDeliveryRouter({ loadOrder, loadOrders, presentOrder }) {
   // Attribuer (driver_id) ou retirer (null) le livreur d'une commande en livraison.
   router.patch('/api/admin/orders/:id/assign', requireAdmin, h((req, res) => {
     const order = findOrder(req.params.id);
+    assertRestaurantAccess(req.user, order.restaurant_id, 'Commande introuvable');
     const body = req.body || {};
     if (!('driver_id' in body)) throw httpError(400, 'driver_id requis (ou null pour retirer le livreur)');
     if (order.mode !== 'delivery') throw httpError(400, 'Commande à emporter : pas de livreur');
@@ -459,6 +503,7 @@ function createDeliveryRouter({ loadOrder, loadOrders, presentOrder }) {
     const driver = getDriverRow(body.driver_id);
     if (!driver) throw httpError(404, 'Livreur introuvable');
     if (Number(driver.active ?? 1) !== 1) throw httpError(400, 'Ce livreur est désactivé');
+    if (driverRestaurant(driver) !== Number(order.restaurant_id)) throw httpError(400, 'Ce livreur travaille pour un autre restaurant');
     if (!['ready', 'delivering'].includes(order.status)) throw httpError(400, 'La commande doit être prête avant d\'attribuer un livreur');
     assertPaid(order);
     if (order.driver_id !== driver.id) {
@@ -470,6 +515,8 @@ function createDeliveryRouter({ loadOrder, loadOrders, presentOrder }) {
         ip: req.ip,
       });
       notify.deliveryAssigned(order, driver.id);
+      // Livreur remplacé : sa position n'est plus conservée s'il n'a plus de livraison en cours.
+      if (order.driver_id && activeDeliveries(order.driver_id) === 0) forgetDriverLocation(order.driver_id);
       if (order.status !== 'delivering') notify.statusChanged(order, 'delivering', { driverName: driver.name });
     }
     res.json(orderJson(order.id, req.user));

@@ -144,11 +144,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
     try {
       csv = await downloadSalesReportCsv(r.start, r.end);
       if (!mounted) return;
-      final file = await writeCollectionsCsvFile(csv);
       final label = 'Ventes Eza Zozo $period';
       await SharePlus.instance.share(
         ShareParams(
-          files: [XFile(file.path, mimeType: 'text/csv', name: csv.fileName)],
+          files: [csvShareFile(csv)],
           fileNameOverrides: [csv.fileName],
           subject: label,
           title: label,

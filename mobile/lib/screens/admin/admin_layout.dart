@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 /// Largeur à partir de laquelle l'espace admin passe en mise en page tablette (NavigationRail).
-const adminTabletBreakpoint = 840.0;
+/// 600 (fenêtre « moyenne » de Material 3) : une tablette du gérant en portrait (≈ 800 dp) en profite aussi.
+const adminTabletBreakpoint = 600.0;
 
 /// Largeur à partir de laquelle le NavigationRail affiche ses libellés (rail étendu).
 const adminRailExtendedBreakpoint = 1200.0;

@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../../models.dart';
 import '../../models_admin.dart';
+import '../../models_restaurants.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/admin_api.dart';
+import '../../services/restaurant_scope.dart';
 import '../../theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/animations.dart';
@@ -354,6 +356,7 @@ class _StaffTile extends StatelessWidget {
               children: [
                 _chip(staffLevelLabel(m.adminLevel), levelColor,
                     icon: m.isOwner ? Icons.workspace_premium_rounded : null),
+                if (m.restaurantName != null) _chip(m.restaurantName!, muted, icon: Icons.storefront_rounded),
                 _chip(m.active ? 'Actif' : 'Désactivé', m.active ? activeColor : muted),
                 _chip('Depuis le ${formatDateTime(m.createdAt).split(' à ').first}', muted),
               ],
@@ -435,6 +438,11 @@ class _StaffFormDialogState extends State<_StaffFormDialog> {
   bool _obscure = true;
   String? _error; // message du serveur (ex. numéro déjà utilisé)
 
+  /// Restaurants où le gérant peut travailler (propriétaire de plusieurs restaurants).
+  final List<Restaurant> _restaurants =
+      RestaurantScope.instance.restaurants.value.where((r) => r.active).toList();
+  late int? _restaurantId = RestaurantScope.instance.restaurantId ?? _restaurants.firstOrNull?.id;
+
   @override
   void dispose() {
     _name.dispose();
@@ -455,6 +463,7 @@ class _StaffFormDialogState extends State<_StaffFormDialog> {
         phone: _phone.text.trim(),
         password: _password.text,
         adminLevel: 'manager',
+        restaurantId: _restaurantId,
       );
       if (mounted) Navigator.pop(context, m);
     } catch (e) {
@@ -505,6 +514,20 @@ class _StaffFormDialogState extends State<_StaffFormDialog> {
                 ),
                 validator: _validatePassword,
               ),
+              if (_restaurants.length > 1) ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: _restaurants.any((r) => r.id == _restaurantId) ? _restaurantId : null,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Restaurant', helperText: 'Le gérant ne voit que ce restaurant'),
+                  items: [
+                    for (final r in _restaurants)
+                      DropdownMenuItem(value: r.id, child: Text(r.name, overflow: TextOverflow.ellipsis)),
+                  ],
+                  validator: (v) => v == null ? 'Choisissez le restaurant' : null,
+                  onChanged: (v) => setState(() => _restaurantId = v),
+                ),
+              ],
               const SizedBox(height: 12),
               Text(
                 'Le gérant reçoit les commandes, donne leur statut, attribue les livreurs, tient la caisse et gère le restaurant.',

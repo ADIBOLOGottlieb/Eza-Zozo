@@ -206,13 +206,23 @@ async function notifyUser(userId, message) {
   }
 }
 
-/** Envoie une notification à tous les comptes actifs d'un rôle ('admin' | 'driver'). Ne lève jamais d'erreur. */
-async function notifyRole(role, message) {
+/**
+ * Envoie une notification à tous les comptes actifs d'un rôle ('admin' | 'driver'). Ne lève jamais d'erreur.
+ * [restaurantId] : seulement le personnel de ce restaurant (le propriétaire reçoit celles de tous ses restaurants).
+ */
+async function notifyRole(role, message, restaurantId = null) {
   try {
     if (!isConfigured()) return;
+    let scope = '';
+    const params = [String(role)];
+    if (restaurantId) {
+      // Compte du personnel sans restaurant (base d'avant le multi-restaurant) : restaurant par défaut.
+      scope = ` AND (COALESCE(u.admin_level, '') = 'owner' OR COALESCE(u.restaurant_id, ?) = ?)`;
+      params.push(require('./db').defaultRestaurantId(), Number(restaurantId));
+    }
     const rows = db.prepare(
-      `SELECT t.token FROM push_tokens t JOIN users u ON u.id = t.user_id WHERE u.role = ?${activeUserFilter()}`,
-    ).all(String(role));
+      `SELECT t.token FROM push_tokens t JOIN users u ON u.id = t.user_id WHERE u.role = ?${activeUserFilter()}${scope}`,
+    ).all(...params);
     await sendToTokens(rows.map((r) => r.token), message);
   } catch (e) {
     log.error('notifyRole a échoué', { error: e.message });

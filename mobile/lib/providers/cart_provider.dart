@@ -100,6 +100,20 @@ class CartProvider extends ChangeNotifier {
   void reset() {
     clear();
     _userId = null;
+    _restaurantId = null;
+  }
+
+  /// Restaurant des plats du panier (null tant qu'aucun restaurant n'a été choisi).
+  int? _restaurantId;
+  int? get restaurantId => _restaurantId;
+
+  /// Une commande ne vise qu'un restaurant : en passer à un autre vide le panier.
+  /// (Un panier enregistré par une ancienne version est revalidé par [syncWithCatalog].)
+  Future<void> useRestaurant(int restaurantId) async {
+    if (_restaurantId == restaurantId) return;
+    final previous = _restaurantId;
+    _restaurantId = restaurantId;
+    if (previous != null && _lines.isNotEmpty) clear();
   }
 
   /// Revalide le panier avec le catalogue client complet qui vient d'être chargé :

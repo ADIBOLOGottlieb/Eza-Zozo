@@ -7,7 +7,7 @@
  * - pack_value = somme des prix des plats ; savings = pack_value − prix du pack (0 au minimum) ;
  * - une ligne de commande garde le détail du pack (order_items.details) pour la cuisine.
  */
-const { db } = require('./db');
+const { db, currentRestaurantId } = require('./db');
 
 const MAX_COMPONENTS = 10;
 const MAX_COMPONENT_QTY = 20;
@@ -37,7 +37,7 @@ const isPack = (product) => storedItems(product).length > 0;
  * Valide le contenu d'un pack envoyé par l'admin.
  * @returns chaîne JSON à stocker, ou null (plat simple : absent, null ou tableau vide)
  */
-function parsePackItems(raw, selfId = null) {
+function parsePackItems(raw, selfId = null, restaurantId = currentRestaurantId()) {
   if (raw === undefined || raw === null) return null;
   if (!Array.isArray(raw)) throw httpError(400, 'Contenu du pack invalide');
   if (raw.length === 0) return null;
@@ -56,7 +56,8 @@ function parsePackItems(raw, selfId = null) {
       throw httpError(400, `Quantité invalide dans le pack (1 à ${MAX_COMPONENT_QTY})`);
     }
     if (selfId !== null && id === Number(selfId)) throw httpError(400, 'Un pack ne peut pas se contenir lui-même');
-    const p = db.prepare('SELECT id, name, pack_items FROM products WHERE id = ?').get(id);
+    // Un pack ne contient que des plats du même restaurant.
+    const p = db.prepare('SELECT id, name, pack_items FROM products WHERE id = ? AND restaurant_id = ?').get(id, Number(restaurantId));
     if (!p) throw httpError(400, 'Un plat du pack n\'existe plus');
     if (isPack(p)) throw httpError(400, `« ${p.name} » est déjà un pack : il ne peut pas faire partie d'un autre pack`);
     merged.set(id, (merged.get(id) || 0) + qty);
@@ -89,16 +90,17 @@ function packDetails(product, byId) {
   return { items, value, componentsAvailable };
 }
 
-/** Catalogue complet indexé par id (une requête pour toute une liste). */
-function catalogById() {
-  return new Map(db.prepare('SELECT id, name, price, available FROM products').all().map((p) => [p.id, p]));
+/** Catalogue d'un restaurant indexé par id (une requête pour toute une liste). */
+function catalogById(restaurantId = currentRestaurantId()) {
+  return new Map(db.prepare('SELECT id, name, price, available FROM products WHERE restaurant_id = ?').all(Number(restaurantId))
+    .map((p) => [p.id, p]));
 }
 
 /**
  * Produit au format API. Ajoute is_pack, pack_items (avec noms et prix), pack_value, savings.
  * `available` d'un pack = disponible ET tous ses plats disponibles ; `available_raw` = interrupteur de l'admin.
  */
-function presentProduct(p, byId = catalogById()) {
+function presentProduct(p, byId = catalogById(p.restaurant_id ?? undefined)) {
   const { pack_items: _stored, ...rest } = p;
   const base = { ...rest, available: !!p.available, popular: !!p.popular, is_pack: false, pack_items: [], pack_value: null, savings: 0 };
   if (!isPack(p)) return base;
@@ -121,7 +123,7 @@ function presentProduct(p, byId = catalogById()) {
  */
 function lineDetails(product) {
   if (!isPack(product)) return null;
-  const byId = catalogById();
+  const byId = catalogById(product.restaurant_id ?? undefined);
   const d = packDetails(product, byId);
   if (!d.componentsAvailable) throw httpError(400, `« ${product.name} » n'est plus disponible (un de ses plats est épuisé)`);
   return d.items.map((i) => `${i.quantity}× ${i.name}`).join(', ').slice(0, 300);
@@ -131,10 +133,11 @@ function lineDetails(product) {
 function ensurePacksCategory() {
   const done = db.prepare(`SELECT value FROM settings WHERE key = 'packs_category_created'`).get();
   if (done) return;
-  const exists = db.prepare(`SELECT id FROM categories WHERE name = 'Packs' COLLATE NOCASE`).get();
+  // Bases d'avant le multi-restaurant : tout le menu est au restaurant n°1.
+  const exists = db.prepare(`SELECT id FROM categories WHERE name = 'Packs' COLLATE NOCASE AND restaurant_id = 1`).get();
   if (!exists) {
-    const position = (db.prepare('SELECT MAX(position) AS m FROM categories').get()?.m ?? -1) + 1;
-    db.prepare(`INSERT INTO categories (name, icon, position) VALUES ('Packs', 'pack', ?)`).run(position);
+    const position = (db.prepare('SELECT MAX(position) AS m FROM categories WHERE restaurant_id = 1').get()?.m ?? -1) + 1;
+    db.prepare(`INSERT INTO categories (name, icon, position, restaurant_id) VALUES ('Packs', 'pack', ?, 1)`).run(position);
   }
   db.prepare(`INSERT INTO settings (key, value) VALUES ('packs_category_created', '1')
               ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run();
