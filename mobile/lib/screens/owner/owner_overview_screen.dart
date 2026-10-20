@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../models_restaurants.dart';
@@ -128,7 +130,9 @@ class _OwnerOverviewScreenState extends State<OwnerOverviewScreen> {
               onRefresh: _load,
               child: LayoutBuilder(builder: (context, constraints) {
                 final width = constraints.maxWidth;
-                final columns = width >= 1300 ? 3 : (width >= 760 ? 2 : 1);
+                // 2 colonnes dès 620 dp de contenu : une tablette en portrait (≈ 670 dp à côté de la barre
+                // latérale) n'a pas une seule carte étirée sur toute la largeur.
+                final columns = width >= 1300 ? 3 : (width >= 620 ? 2 : 1);
                 final pad = width >= 760 ? 24.0 : 16.0;
                 return ListView(
                   padding: EdgeInsets.fromLTRB(pad, 8, pad, 32),
@@ -153,6 +157,11 @@ class _OwnerOverviewScreenState extends State<OwnerOverviewScreen> {
                                   for (final r in data.restaurants)
                                     _RestaurantCard(
                                       r: r,
+                                      // En grille, les cartes d'une rangée ont la même hauteur : boutons alignés en bas.
+                                      fillHeight: columns > 1,
+                                      // Largeur d'une carte (marges et espaces de la grille déduits) < 340 dp.
+                                      compactButtons:
+                                          (math.min(width - 2 * pad, 1600) - 12 * (columns - 1)) / columns < 340,
                                       onOpen: r.active ? () => widget.onOpenRestaurant(r.id) : null,
                                       onOrders: r.active ? () => widget.onOpenOrders(r.id) : null,
                                     ),
@@ -226,11 +235,19 @@ class _Change extends StatelessWidget {
     final up = p >= 0;
     final color = up ? AppColors.green : AppColors.danger;
     final text = '${up ? '+' : ''}${p.toStringAsFixed(p.abs() >= 10 ? 0 : 1).replaceAll('.', ',')} %';
+    // Texte souple : passe à la ligne sur une carte étroite ou avec une grande taille de police.
     return Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(up ? Icons.trending_up_rounded : Icons.trending_down_rounded, size: size + 3, color: color),
       const SizedBox(width: 3),
-      Text(text, style: TextStyle(fontSize: size, fontWeight: FontWeight.w700, color: color)),
-      Text(' vs sem. dernière', style: TextStyle(fontSize: size, color: muted)),
+      Flexible(
+        child: Text.rich(
+          TextSpan(children: [
+            TextSpan(text: text, style: TextStyle(fontWeight: FontWeight.w700, color: color)),
+            TextSpan(text: ' vs sem. dernière', style: TextStyle(color: muted)),
+          ]),
+          style: TextStyle(fontSize: size),
+        ),
+      ),
     ]);
   }
 }
@@ -413,7 +430,18 @@ class _RestaurantCard extends StatelessWidget {
   final RestaurantOverview r;
   final VoidCallback? onOpen;
   final VoidCallback? onOrders;
-  const _RestaurantCard({required this.r, this.onOpen, this.onOrders});
+  /// Carte dans une grille (hauteur imposée par la rangée) : graphique et boutons poussés en bas.
+  final bool fillHeight;
+
+  /// Carte étroite : boutons sans icône.
+  final bool compactButtons;
+  const _RestaurantCard({
+    required this.r,
+    this.onOpen,
+    this.onOrders,
+    this.fillHeight = false,
+    this.compactButtons = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -505,25 +533,37 @@ class _RestaurantCard extends StatelessWidget {
                 ]),
               ],
               const SizedBox(height: 14),
+              if (fillHeight) const Spacer(),
               _WeekBars(days: r.last7Days, height: 46),
               const SizedBox(height: 8),
-              Row(children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onOrders,
-                    icon: const Icon(Icons.receipt_long_rounded, size: 18),
-                    label: const Text('Commandes'),
+              // Carte étroite (tablette en portrait, 2 colonnes) : boutons sans icône, texte jamais coupé.
+              // (Largeur calculée par l'écran : pas de LayoutBuilder dans la grille à hauteur intrinsèque.)
+              Builder(builder: (context) {
+                final narrow = compactButtons;
+                Widget label(String text) => FittedBox(fit: BoxFit.scaleDown, child: Text(text, maxLines: 1));
+                const pad = EdgeInsets.symmetric(horizontal: 10);
+                return Row(children: [
+                  Expanded(
+                    child: narrow
+                        ? OutlinedButton(style: OutlinedButton.styleFrom(padding: pad), onPressed: onOrders, child: label('Commandes'))
+                        : OutlinedButton.icon(
+                            onPressed: onOrders,
+                            icon: const Icon(Icons.receipt_long_rounded, size: 18),
+                            label: label('Commandes'),
+                          ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: onOpen,
-                    icon: const Icon(Icons.insights_rounded, size: 18),
-                    label: const Text('Détails'),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: narrow
+                        ? FilledButton(style: FilledButton.styleFrom(padding: pad), onPressed: onOpen, child: label('Détails'))
+                        : FilledButton.icon(
+                            onPressed: onOpen,
+                            icon: const Icon(Icons.insights_rounded, size: 18),
+                            label: label('Détails'),
+                          ),
                   ),
-                ),
-              ]),
+                ]);
+              }),
             ],
           ),
         ),
@@ -591,7 +631,7 @@ class _Warn extends StatelessWidget {
     return Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, size: 16, color: color),
       const SizedBox(width: 4),
-      Text(text, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+      Flexible(child: Text(text, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700))),
     ]);
   }
 }

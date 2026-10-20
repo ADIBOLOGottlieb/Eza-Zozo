@@ -93,6 +93,8 @@ class OwnerRestaurantBar extends StatelessWidget {
         valueListenable: scope.current,
         builder: (context, current, _) {
           final selected = scope.selected;
+          // Écran peu haut (smartphone couché) : barre sur une ligne, sans sous-titre.
+          final compact = MediaQuery.sizeOf(context).height < 500;
           return Material(
             color: scheme.surfaceContainerHigh,
             child: SafeArea(
@@ -104,7 +106,7 @@ class OwnerRestaurantBar extends StatelessWidget {
                   if (choice != null) await scope.select(choice);
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: compact ? 6 : 10),
                   child: Row(
                     children: [
                       Icon(scope.isAll ? Icons.dashboard_rounded : Icons.storefront_rounded, color: brandColor(context)),
@@ -120,7 +122,7 @@ class OwnerRestaurantBar extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                             ),
-                            Text(
+                            if (!compact) Text(
                               scope.isAll
                                   ? '${restaurants.length} restaurant${restaurants.length > 1 ? 's' : ''} • touchez pour en choisir un'
                                   : selected == null
